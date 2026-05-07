@@ -1,13 +1,13 @@
 import Parser from "tree-sitter";
 import path from "path";
 import type {
+  BaseTreeSitterLanguageAdapter,
   ExtractedSymbol,
   ParseRequest,
-  TreeSitterLanguageAdapter,
 } from "../../models/SymbolExtraction.js";
 
 export interface TreeSitterServiceConfig {
-  adapters?: TreeSitterLanguageAdapter[];
+  adapters?: BaseTreeSitterLanguageAdapter[];
 }
 
 /**
@@ -21,8 +21,8 @@ export interface TreeSitterServiceConfig {
  */
 export class TreeSitterService {
   private parser: Parser;
-  private adaptersById: Map<string, TreeSitterLanguageAdapter>;
-  private adaptersByExtension: Map<string, TreeSitterLanguageAdapter>;
+  private adaptersById: Map<string, BaseTreeSitterLanguageAdapter>;
+  private adaptersByExtension: Map<string, BaseTreeSitterLanguageAdapter>;
 
   constructor(config: TreeSitterServiceConfig = {}) {
     this.parser = new Parser();
@@ -34,7 +34,7 @@ export class TreeSitterService {
     }
   }
 
-  registerAdapter(adapter: TreeSitterLanguageAdapter): void {
+  registerAdapter(adapter: BaseTreeSitterLanguageAdapter): void {
     this.adaptersById.set(adapter.id, adapter);
 
     for (const extension of adapter.extensions) {
@@ -50,7 +50,7 @@ export class TreeSitterService {
     throw new Error("Not implemented: extract symbols from parse tree");
   }
 
-  private resolveAdapter(request: ParseRequest): TreeSitterLanguageAdapter {
+  private resolveAdapter(request: ParseRequest): BaseTreeSitterLanguageAdapter {
     if (request.languageId) {
       const byLanguageId = this.adaptersById.get(request.languageId);
       if (byLanguageId) {
@@ -73,7 +73,7 @@ export class TreeSitterService {
   // Reserved for future implementation to keep the intended control flow explicit.
   private async parseWithResolvedAdapter(
     _request: ParseRequest,
-  ): Promise<{ adapter: TreeSitterLanguageAdapter; tree: Parser.Tree }> {
+  ): Promise<{ adapter: BaseTreeSitterLanguageAdapter; tree: Parser.Tree }> {
     throw new Error(
       "Not implemented: resolve adapter, set language, parse tree",
     );

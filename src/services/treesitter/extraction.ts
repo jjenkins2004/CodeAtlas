@@ -1,8 +1,8 @@
 import Parser from "tree-sitter";
 import type {
+  BaseTreeSitterLanguageAdapter,
   CaptureMap,
   ExtractedSymbol,
-  TreeSitterLanguageAdapter,
 } from "../../models/SymbolExtraction.js";
 import { extractNodeText, getRequiredCapture } from "./utils.js";
 
@@ -20,29 +20,16 @@ function hasAllCaptures(captures: CaptureMap, names: string[]): boolean {
   return names.every((name) => captures.has(name));
 }
 
-function compileQuery(adapter: TreeSitterLanguageAdapter): Parser.Query {
-  // TODO: Cache compiled queries per adapter/template to avoid recompiling
-  // Parser.Query on every extractSymbolsFromSource() call.
-  const nameToken = "$1";
-  const definitionToken = "$2";
-
-  const querySource = adapter.queryTemplate
-    .replaceAll(nameToken, "@symbol.name")
-    .replaceAll(definitionToken, "@symbol.definition");
-
-  return new Parser.Query(adapter.language, querySource);
-}
-
 export function extractSymbolsFromSource(
   source: string,
-  adapter: TreeSitterLanguageAdapter,
+  adapter: BaseTreeSitterLanguageAdapter,
 ): ExtractedSymbol[] {
   const parser = new Parser();
   parser.setLanguage(adapter.language);
 
   const tree = parser.parse(source);
   const symbols: ExtractedSymbol[] = [];
-  const query = compileQuery(adapter);
+  const query = adapter.getQuery();
   const matches = query.matches(tree.rootNode);
 
   for (const match of matches) {
@@ -56,11 +43,16 @@ export function extractSymbolsFromSource(
     const definitionNode = getRequiredCapture(captures, "symbol.definition");
     const symbolName = extractNodeText(source, nameNode);
     const symbolBody = extractNodeText(source, definitionNode);
+    const symbolType = adapter.getType(captures);
+
+    if (!symbolType) {
+      continue;
+    }
 
     symbols.push({
       symbol: symbolName,
-      type: adapter.getType(captures),
-      visibility: adapter.getVisibility(symbolName),
+      type: symbolType,
+      visibility: adapter.getVisibility(symbolName, definitionNode),
       body: symbolBody,
     });
   }

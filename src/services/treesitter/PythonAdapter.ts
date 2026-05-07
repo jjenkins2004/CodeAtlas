@@ -1,8 +1,8 @@
 import Parser from "tree-sitter";
 import Python from "tree-sitter-python";
-import type {
-  CaptureMap,
-  TreeSitterLanguageAdapter,
+import {
+  BaseTreeSitterLanguageAdapter,
+  type CaptureMap,
 } from "../../models/SymbolExtraction.js";
 import type { SymbolType, Visibility } from "../../models/Symbol.js";
 import { resolveTreeSitterLanguage } from "./resolveTreeSitterLanguage.js";
@@ -52,13 +52,13 @@ function isMethodDefinition(definitionNode: SyntaxNode): boolean {
   return false;
 }
 
-export class PythonAdapter implements TreeSitterLanguageAdapter {
+export class PythonAdapter extends BaseTreeSitterLanguageAdapter {
   id = "python";
   extensions = [".py", ".pyi"];
   language: Parser.Language = resolveTreeSitterLanguage(Python);
   queryTemplate: string = SYMBOL_QUERY_TEMPLATE;
 
-  getType(captures: CaptureMap): SymbolType {
+  getType(captures: CaptureMap): SymbolType | undefined {
     const definition = getRequiredCapture(captures, "symbol.definition");
 
     if (definition.type === "class_definition") {
@@ -69,10 +69,10 @@ export class PythonAdapter implements TreeSitterLanguageAdapter {
       return isMethodDefinition(definition) ? "method" : "function";
     }
 
-    return "function";
+    return undefined;
   }
 
-  getVisibility(symbolName: string): Visibility {
+  getVisibility(symbolName: string, _definitionNode: SyntaxNode): Visibility {
     return classifyVisibility(symbolName);
   }
 }

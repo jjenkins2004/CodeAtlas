@@ -1,4 +1,4 @@
-import type Parser from "tree-sitter";
+import Parser from "tree-sitter";
 import type { SymbolType, Visibility } from "./Symbol";
 
 export interface ExtractedSymbol {
@@ -15,22 +15,22 @@ export interface ParseRequest {
 }
 
 /**
- * Capture lookup map where keys are capture names and values are matched nodes.
+ * Capture lookup map where keys are capture names and values are the matched captured nodes.
  */
 export type CaptureMap = Map<string, Parser.SyntaxNode>;
 
 /**
- * Contract implemented by each language adapter.
+ * Base contract implemented by each language adapter.
  */
-export interface TreeSitterLanguageAdapter {
+export abstract class BaseTreeSitterLanguageAdapter {
   /** Stable language id used for registration and lookup, e.g. "python". */
-  id: string;
+  abstract id: string;
 
   /** File extensions handled by this adapter, including the leading dot. */
-  extensions: string[];
+  abstract extensions: string[];
 
   /** Tree-sitter language object compatible with Parser.setLanguage(...). */
-  language: Parser.Language;
+  abstract language: Parser.Language;
 
   /**
    * Tree-sitter query source template.
@@ -42,18 +42,43 @@ export interface TreeSitterLanguageAdapter {
    * Example:
    * (class_definition name: (identifier) $1) $2
    */
-  queryTemplate: string;
+  abstract queryTemplate: string;
+
+  private compiledQuery: Parser.Query | undefined;
+
+  /**
+   * Returns the compiled Tree-sitter query for this adapter.
+   * Implementations should compile lazily and cache the result.
+   */
+  getQuery(): Parser.Query {
+    if (this.compiledQuery) {
+      return this.compiledQuery;
+    }
+
+    const nameToken = "$1";
+    const definitionToken = "$2";
+
+    const querySource = this.queryTemplate
+      .replaceAll(nameToken, "@symbol.name")
+      .replaceAll(definitionToken, "@symbol.definition");
+
+    this.compiledQuery = new Parser.Query(this.language, querySource);
+
+    return this.compiledQuery;
+  }
 
   /**
    * Maps a match's capture map to a normalized SymbolType.
+   * Return undefined when the capture should be ignored.
    */
-  getType(captures: CaptureMap): SymbolType;
+  abstract getType(captures: CaptureMap): SymbolType | undefined;
 
   /**
-   * Computes symbol visibility from the extracted symbol name.
-   * TODO: Visibility may require AST context in some languages (e.g. modifiers
-   * on a definition node). Consider accepting CaptureMap or definition node
-   * input in addition to symbolName.
+   * Computes symbol visibility from the extracted symbol name and definition
+   * node AST context.
    */
-  getVisibility(symbolName: string): Visibility;
+  abstract getVisibility(
+    symbolName: string,
+    definitionNode: Parser.SyntaxNode,
+  ): Visibility;
 }
