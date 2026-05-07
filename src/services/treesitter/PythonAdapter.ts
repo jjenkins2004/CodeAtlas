@@ -2,27 +2,23 @@ import Parser from "tree-sitter";
 import Python from "tree-sitter-python";
 import type {
   CaptureMap,
-  SymbolRule,
   TreeSitterLanguageAdapter,
 } from "../../models/SymbolExtraction.js";
-import type { Visibility } from "../../models/Symbol.js";
+import type { SymbolType, Visibility } from "../../models/Symbol.js";
 import { resolveTreeSitterLanguage } from "./resolveTreeSitterLanguage.js";
-import { extractNodeText, getRequiredCapture } from "./utils.js";
+import { getRequiredCapture } from "./utils.js";
 
 type SyntaxNode = Parser.SyntaxNode;
 
-const SYMBOL_QUERY = new Parser.Query(
-  resolveTreeSitterLanguage(Python),
-  `
+const SYMBOL_QUERY_TEMPLATE = `
 	(class_definition
-		name: (identifier) @class.name) @class.definition
+  name: (identifier) $1) $2
 
 	(function_definition
-		name: (identifier) @function.name) @function.definition
-`,
-);
+  name: (identifier) $1) $2
+`;
 
-function getVisibility(symbolName: string): Visibility {
+function classifyVisibility(symbolName: string): Visibility {
   if (symbolName.startsWith("__") && !symbolName.endsWith("__")) {
     return "private";
   }
@@ -56,50 +52,29 @@ function isMethodDefinition(definitionNode: SyntaxNode): boolean {
   return false;
 }
 
-const SYMBOL_RULES: SymbolRule[] = [
-  {
-    requiredCaptures: ["class.name", "class.definition"],
-    buildSymbol(captures, source) {
-      const className = getRequiredCapture(captures, "class.name");
-      const classDefinition = getRequiredCapture(captures, "class.definition");
-      const symbolName = extractNodeText(source, className);
-      const symbolBody = extractNodeText(source, classDefinition);
-
-      return {
-        symbol: symbolName,
-        type: "class",
-        visibility: getVisibility(symbolName),
-        body: symbolBody,
-      };
-    },
-  },
-  {
-    requiredCaptures: ["function.name", "function.definition"],
-    buildSymbol(captures, source) {
-      const functionName = getRequiredCapture(captures, "function.name");
-      const functionDefinition = getRequiredCapture(
-        captures,
-        "function.definition",
-      );
-      const symbolName = extractNodeText(source, functionName);
-      const symbolBody = extractNodeText(source, functionDefinition);
-
-      return {
-        symbol: symbolName,
-        type: isMethodDefinition(functionDefinition) ? "method" : "function",
-        visibility: getVisibility(symbolName),
-        body: symbolBody,
-      };
-    },
-  },
-];
-
 export class PythonAdapter implements TreeSitterLanguageAdapter {
   id = "python";
   extensions = [".py", ".pyi"];
   language: Parser.Language = resolveTreeSitterLanguage(Python);
-  query: Parser.Query = SYMBOL_QUERY;
-  symbolRules: SymbolRule[] = SYMBOL_RULES;
+  queryTemplate: string = SYMBOL_QUERY_TEMPLATE;
+
+  getType(captures: CaptureMap): SymbolType {
+    const definition = getRequiredCapture(captures, "symbol.definition");
+
+    if (definition.type === "class_definition") {
+      return "class";
+    }
+
+    if (definition.type === "function_definition") {
+      return isMethodDefinition(definition) ? "method" : "function";
+    }
+
+    return "function";
+  }
+
+  getVisibility(symbolName: string): Visibility {
+    return classifyVisibility(symbolName);
+  }
 }
 
 export const pythonAdapter = new PythonAdapter();
