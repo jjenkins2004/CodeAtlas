@@ -1,17 +1,12 @@
 export type SymbolType =
   | "function"
   | "class"
-  | "interface"
   | "enum"
-  | "type"
-  | "constant"
   | "method"
-  | "property"
   | "protocol"
   | "struct"
-  | "unknown";
 
-export type Visibility = "public" | "internal" | "private" | "protected";
+export type Visibility = "public" | "internal" | "private";
 
 export interface Symbol {
   id: string;
