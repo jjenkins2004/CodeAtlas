@@ -21,6 +21,8 @@ function hasAllCaptures(captures: CaptureMap, names: string[]): boolean {
 }
 
 function compileQuery(adapter: TreeSitterLanguageAdapter): Parser.Query {
+  // TODO: Cache compiled queries per adapter/template to avoid recompiling
+  // Parser.Query on every extractSymbolsFromSource() call.
   const nameToken = "$1";
   const definitionToken = "$2";
 
