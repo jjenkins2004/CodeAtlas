@@ -2,9 +2,8 @@ export type SymbolType =
   | "function"
   | "class"
   | "enum"
-  | "method"
   | "protocol"
-  | "struct"
+  | "method"
 
 export type Visibility = "public" | "internal" | "private";
 
