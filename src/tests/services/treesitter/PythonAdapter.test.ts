@@ -215,5 +215,116 @@ describe("PythonAdapter", () => {
         findSymbol(symbols, "Top.Middle.Bottom.bottom_method", "method"),
       ).toBeDefined();
     });
+
+    it("extracts decorated functions and classes, keeping the decorator in the body", () => {
+      const source = [
+        "@dataclass",
+        "class Config:",
+        "    @property",
+        "    def is_valid(self):",
+        "        return True",
+        "",
+      ].join("\n");
+
+      const symbols = parseAndExtract(source);
+
+      const configClass = findSymbol(symbols, "Config", "class");
+      const validMethod = findSymbol(symbols, "Config.is_valid", "method");
+
+      // The body MUST include the decorator.
+      expect(configClass.body).toContain("@dataclass\nclass Config:");
+      expect(validMethod.body).toContain("@property\n    def is_valid");
+    });
+
+    it("extracts async functions and methods correctly", () => {
+      const source = [
+        "async def fetch_data():",
+        "    await asyncio.sleep(1)",
+        "    return data",
+        "",
+        "class Client:",
+        "    async def connect(self):",
+        "        pass",
+        "",
+      ].join("\n");
+
+      const symbols = parseAndExtract(source);
+
+      const fetchFunc = findSymbol(symbols, "fetch_data", "function");
+      const connectMethod = findSymbol(symbols, "Client.connect", "method");
+
+      expect(fetchFunc.body).toContain("async def fetch_data():");
+      expect(connectMethod.body).toContain("async def connect(self):");
+    });
+
+    it("correctly identifies names ignoring inheritance and type hints", () => {
+      const source = [
+        "class CustomError(Exception):",
+        "    def handle(self, code: int) -> str:",
+        "        return 'fixed'",
+        "",
+      ].join("\n");
+
+      const symbols = parseAndExtract(source);
+
+      // If the parser gets confused, it might name this "Exception" instead of "CustomError"
+      const customError = findSymbol(symbols, "CustomError", "class");
+
+      // If the parser gets confused, it might name this "str" instead of "handle"
+      const handleMethod = findSymbol(symbols, "CustomError.handle", "method");
+
+      expect(customError).toBeDefined();
+      expect(handleMethod.body).toContain("-> str:");
+    });
+
+    it("extracts functions with multiple decorators and decorators with arguments", () => {
+      const source = [
+        "@app.route('/api/v1/users', methods=['GET'])",
+        "@require_auth",
+        "@rate_limit(max_requests=100)",
+        "def get_users():",
+        "    return []",
+        "",
+      ].join("\n");
+
+      const symbols = parseAndExtract(source);
+      const getUsers = findSymbol(symbols, "get_users", "function");
+
+      // The body MUST include all decorators.
+      expect(getUsers.body).toContain(
+        "@app.route('/api/v1/users', methods=['GET'])",
+      );
+      expect(getUsers.body).toContain("@require_auth");
+      expect(getUsers.body).toContain("@rate_limit(max_requests=100)");
+      expect(getUsers.body).toContain("def get_users():");
+    });
+
+    it("safely ignores control flow blocks (if, try, with) when determining prefixes and method types", () => {
+      const source = [
+        "if __name__ == '__main__':",
+        "    class AppContext:",
+        "        def run(self):",
+        "            pass",
+        "",
+        "    def standalone_func():",
+        "        pass",
+        "",
+      ].join("\n");
+
+      const symbols = parseAndExtract(source);
+
+      // Should be named "AppContext", not "if.AppContext"
+      const appClass = findSymbol(symbols, "AppContext", "class");
+
+      // Should be recognized as a method, not a function, even though it's inside an if block
+      const runMethod = findSymbol(symbols, "AppContext.run", "method");
+
+      // Should be recognized as a standard function, not a method
+      const standaloneFunc = findSymbol(symbols, "standalone_func", "function");
+
+      expect(appClass).toBeDefined();
+      expect(runMethod).toBeDefined();
+      expect(standaloneFunc).toBeDefined();
+    });
   });
 });

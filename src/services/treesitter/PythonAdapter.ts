@@ -16,7 +16,27 @@ const SYMBOL_QUERY_TEMPLATE = `
 
 	(function_definition
   name: (identifier) $1) $2
+
+	(decorated_definition
+  definition: (class_definition
+    name: (identifier) $1)) $2
+
+	(decorated_definition
+  definition: (function_definition
+    name: (identifier) $1)) $2
 `;
+
+function unwrapDecoratedDefinition(node: SyntaxNode): SyntaxNode {
+  if (node.type !== "decorated_definition") {
+    return node;
+  }
+
+  return node.childForFieldName("definition") ?? node;
+}
+
+function isWrappedByDecoratedDefinition(node: SyntaxNode): boolean {
+  return node.parent?.type === "decorated_definition";
+}
 
 function classifyVisibility(symbolName: string): Visibility {
   if (symbolName.startsWith("__") && !symbolName.endsWith("__")) {
@@ -74,12 +94,19 @@ export class PythonAdapter extends BaseTreeSitterLanguageAdapter {
 
   getType(captures: CaptureMap): SymbolType | undefined {
     const definition = getRequiredCapture(captures, "symbol.definition");
+    const unwrappedDefinition = unwrapDecoratedDefinition(definition);
 
-    if (definition.type === "class_definition") {
+    // The query captures both plain definitions and decorated wrappers.
+    // Skip the inner node when it is wrapped to avoid duplicate symbols.
+    if ( isWrappedByDecoratedDefinition(definition)) {
+      return undefined;
+    }
+
+    if (unwrappedDefinition.type === "class_definition") {
       return "class";
     }
 
-    if (definition.type === "function_definition") {
+    if (unwrappedDefinition.type === "function_definition") {
       return isMethodDefinition(definition) ? "method" : "function";
     }
 
