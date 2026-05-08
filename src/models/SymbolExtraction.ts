@@ -81,4 +81,10 @@ export abstract class BaseTreeSitterLanguageAdapter {
     symbolName: string,
     definitionNode: Parser.SyntaxNode,
   ): Visibility;
+
+  /**
+   * Returns a namespace/container identifier for the given AST node when the
+   * node is a valid language-specific container (e.g. class/struct/enum).
+   */
+  abstract getSymbolPrefix(node: Parser.SyntaxNode): string | undefined;
 }

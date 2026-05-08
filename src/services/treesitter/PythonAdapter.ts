@@ -52,6 +52,20 @@ function isMethodDefinition(definitionNode: SyntaxNode): boolean {
   return false;
 }
 
+function getClassNameFromNode(node: SyntaxNode): string | undefined {
+  if (node.type !== "class_definition") {
+    return undefined;
+  }
+
+  const nameNode = node.childForFieldName("name");
+
+  if (!nameNode) {
+    return undefined;
+  }
+
+  return nameNode.text;
+}
+
 export class PythonAdapter extends BaseTreeSitterLanguageAdapter {
   id = "python";
   extensions = [".py", ".pyi"];
@@ -74,6 +88,10 @@ export class PythonAdapter extends BaseTreeSitterLanguageAdapter {
 
   getVisibility(symbolName: string, _definitionNode: SyntaxNode): Visibility {
     return classifyVisibility(symbolName);
+  }
+
+  getSymbolPrefix(node: SyntaxNode): string | undefined {
+    return getClassNameFromNode(node);
   }
 }
 

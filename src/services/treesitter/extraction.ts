@@ -20,6 +20,32 @@ function hasAllCaptures(captures: CaptureMap, names: string[]): boolean {
   return names.every((name) => captures.has(name));
 }
 
+function buildQualifiedSymbolName(
+  symbolName: string,
+  definitionNode: Parser.SyntaxNode,
+  adapter: BaseTreeSitterLanguageAdapter,
+): string {
+  const prefixes: string[] = [];
+  let current: Parser.SyntaxNode | null = definitionNode.parent;
+
+  // Walk up the tree and collect nearest container names from inner to outer.
+  while (current) {
+    const prefix = adapter.getSymbolPrefix(current);
+
+    if (prefix) {
+      prefixes.push(prefix);
+    }
+
+    current = current.parent;
+  }
+
+  if (prefixes.length === 0) {
+    return symbolName;
+  }
+
+  return `${prefixes.reverse().join(".")}.${symbolName}`;
+}
+
 export function extractSymbolsFromSource(
   source: string,
   adapter: BaseTreeSitterLanguageAdapter,
@@ -42,6 +68,11 @@ export function extractSymbolsFromSource(
     const nameNode = getRequiredCapture(captures, "symbol.name");
     const definitionNode = getRequiredCapture(captures, "symbol.definition");
     const symbolName = extractNodeText(source, nameNode);
+    const qualifiedSymbolName = buildQualifiedSymbolName(
+      symbolName,
+      definitionNode,
+      adapter,
+    );
     const symbolBody = extractNodeText(source, definitionNode);
     const symbolType = adapter.getType(captures);
 
@@ -50,7 +81,7 @@ export function extractSymbolsFromSource(
     }
 
     symbols.push({
-      symbol: symbolName,
+      symbol: qualifiedSymbolName,
       type: symbolType,
       visibility: adapter.getVisibility(symbolName, definitionNode),
       body: symbolBody,

@@ -32,7 +32,6 @@ function findSymbol(
 // ---------------------------------------------------------------------------
 
 describe("PythonAdapter", () => {
-
   // ---------------------------------------------------------------------------
   // extractSymbolsFromSource()
   // ---------------------------------------------------------------------------
@@ -88,7 +87,7 @@ describe("PythonAdapter", () => {
       ].join("\n");
 
       const symbols = parseAndExtract(source);
-      const init = findSymbol(symbols, "__init__", "method");
+      const init = findSymbol(symbols, "User.__init__", "method");
 
       expect(init.visibility).toBe("internal");
       expect(init.body).toContain("self.name = name");
@@ -109,11 +108,15 @@ describe("PythonAdapter", () => {
       const symbols = parseAndExtract(source);
 
       expect(findSymbol(symbols, "Outer", "class").visibility).toBe("public");
-      expect(findSymbol(symbols, "Inner", "class").visibility).toBe("public");
-      expect(findSymbol(symbols, "outer_method", "method").body).toBe(
+      expect(findSymbol(symbols, "Outer.Inner", "class").visibility).toBe(
+        "public",
+      );
+      expect(findSymbol(symbols, "Outer.outer_method", "method").body).toBe(
         ["def outer_method(self):", "        return 'outer'"].join("\n"),
       );
-      expect(findSymbol(symbols, "inner_method", "method").body).toBe(
+      expect(
+        findSymbol(symbols, "Outer.Inner.inner_method", "method").body,
+      ).toBe(
         ["def inner_method(self):", "            return 'inner'"].join("\n"),
       );
     });
@@ -139,9 +142,9 @@ describe("PythonAdapter", () => {
       expect(
         findSymbol(symbols, "nested_inside_function", "function"),
       ).toBeDefined();
-      expect(findSymbol(symbols, "method", "method")).toBeDefined();
+      expect(findSymbol(symbols, "Container.method", "method")).toBeDefined();
       expect(
-        findSymbol(symbols, "nested_inside_method", "function"),
+        findSymbol(symbols, "Container.nested_inside_method", "function"),
       ).toBeDefined();
     });
 
@@ -202,11 +205,15 @@ describe("PythonAdapter", () => {
       const symbols = parseAndExtract(source);
 
       expect(findSymbol(symbols, "Top", "class")).toBeDefined();
-      expect(findSymbol(symbols, "Middle", "class")).toBeDefined();
-      expect(findSymbol(symbols, "Bottom", "class")).toBeDefined();
-      expect(findSymbol(symbols, "top_method", "method")).toBeDefined();
-      expect(findSymbol(symbols, "middle_method", "method")).toBeDefined();
-      expect(findSymbol(symbols, "bottom_method", "method")).toBeDefined();
+      expect(findSymbol(symbols, "Top.Middle", "class")).toBeDefined();
+      expect(findSymbol(symbols, "Top.Middle.Bottom", "class")).toBeDefined();
+      expect(findSymbol(symbols, "Top.top_method", "method")).toBeDefined();
+      expect(
+        findSymbol(symbols, "Top.Middle.middle_method", "method"),
+      ).toBeDefined();
+      expect(
+        findSymbol(symbols, "Top.Middle.Bottom.bottom_method", "method"),
+      ).toBeDefined();
     });
   });
 });
