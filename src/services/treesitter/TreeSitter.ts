@@ -1,10 +1,13 @@
 import Parser from "tree-sitter";
+import fs from "fs/promises";
 import path from "path";
 import type {
   BaseTreeSitterLanguageAdapter,
   ExtractedSymbol,
-  ParseRequest,
 } from "../../models/SymbolExtraction.js";
+import { extractSymbolsFromSource } from "./extraction.js";
+import { swiftAdapter } from "./SwiftAdapter.js";
+import { pythonAdapter } from "./PythonAdapter.js";
 
 export interface TreeSitterServiceConfig {
   adapters?: BaseTreeSitterLanguageAdapter[];
@@ -34,48 +37,36 @@ export class TreeSitterService {
     }
   }
 
-  registerAdapter(adapter: BaseTreeSitterLanguageAdapter): void {
-    this.adaptersById.set(adapter.id, adapter);
-
-    for (const extension of adapter.extensions) {
-      this.adaptersByExtension.set(extension.toLowerCase(), adapter);
-    }
+  async extractSymbols(filePath: string): Promise<ExtractedSymbol[]> {
+    const adapter = this.resolveAdapter(filePath);
+    const source = await this.readSource(filePath);
+    return extractSymbolsFromSource(source, adapter);
   }
 
-  async parse(_request: ParseRequest): Promise<Parser.Tree> {
-    throw new Error("Not implemented: parse source with Tree-sitter");
+  private async readSource(filePath: string): Promise<string> {
+    return fs.readFile(filePath, "utf-8");
   }
 
-  async extractSymbols(_request: ParseRequest): Promise<ExtractedSymbol[]> {
-    throw new Error("Not implemented: extract symbols from parse tree");
-  }
-
-  private resolveAdapter(request: ParseRequest): BaseTreeSitterLanguageAdapter {
-    if (request.languageId) {
-      const byLanguageId = this.adaptersById.get(request.languageId);
-      if (byLanguageId) {
-        return byLanguageId;
-      }
-    }
-
-    const extension = path.extname(request.filePath).toLowerCase();
+  private resolveAdapter(filePath: string): BaseTreeSitterLanguageAdapter {
+    const extension = path.extname(filePath).toLowerCase();
     const byExtension = this.adaptersByExtension.get(extension);
 
     if (byExtension) {
       return byExtension;
     }
 
-    throw new Error(
-      `No Tree-sitter adapter registered for ${request.filePath} (${request.languageId ?? "unknown language"})`,
-    );
+    throw new Error(`No Tree-sitter adapter registered for file: ${filePath}`);
   }
 
-  // Reserved for future implementation to keep the intended control flow explicit.
-  private async parseWithResolvedAdapter(
-    _request: ParseRequest,
-  ): Promise<{ adapter: BaseTreeSitterLanguageAdapter; tree: Parser.Tree }> {
-    throw new Error(
-      "Not implemented: resolve adapter, set language, parse tree",
-    );
+  private registerAdapter(adapter: BaseTreeSitterLanguageAdapter): void {
+    this.adaptersById.set(adapter.id, adapter);
+
+    for (const extension of adapter.extensions) {
+      this.adaptersByExtension.set(extension.toLowerCase(), adapter);
+    }
   }
 }
+
+export const treeSitterService = new TreeSitterService({
+  adapters: [swiftAdapter, pythonAdapter],
+});

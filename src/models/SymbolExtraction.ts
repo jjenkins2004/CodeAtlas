@@ -8,11 +8,6 @@ export interface ExtractedSymbol {
   body: string;
 }
 
-export interface ParseRequest {
-  filePath: string;
-  source: string;
-  languageId?: string;
-}
 
 /**
  * Capture lookup map where keys are capture names and values are the matched captured nodes.
