@@ -1,56 +1,72 @@
+import {
+  pgTable,
+  pgEnum,
+  uuid,
+  text,
+  timestamp,
+  vector,
+} from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+
 /**
- * SQL DDL for the CodeAtlas schema.
- * Run once against the target PostgreSQL database to initialise tables.
- * Requires the pgvector extension to be installed beforehand:
- *   CREATE EXTENSION IF NOT EXISTS vector;
+ * Enum for symbol types extracted by tree-sitter.
  */
-export const SCHEMA_SQL = /* sql */ `
-  CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-  CREATE EXTENSION IF NOT EXISTS vector;
+export const symbolTypeEnum = pgEnum("symbol_type", [
+  "function",
+  "class",
+  "enum",
+  "protocol",
+  "method",
+]);
 
-  CREATE TABLE IF NOT EXISTS repositories (
-    id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name       TEXT NOT NULL,
-    path       TEXT NOT NULL UNIQUE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-  );
+/**
+ * Enum for symbol visibility levels.
+ */
+export const visibilityEnum = pgEnum("visibility", [
+  "public",
+  "internal",
+  "private",
+]);
 
-  CREATE TYPE symbol_type AS ENUM (
-    'function', 'class', 'interface', 'enum', 'type',
-    'constant', 'method', 'property', 'protocol', 'struct', 'unknown'
-  );
+/**
+ * Repositories table — tracks codebases being indexed.
+ */
+export const repositories = pgTable("repositories", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  path: text("path").notNull().unique(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
 
-  CREATE TYPE visibility AS ENUM (
-    'public', 'internal', 'private', 'protected'
-  );
+/**
+ * Symbols table — stores extracted public symbols and their embeddings.
+ */
+export const symbols = pgTable("symbols", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  repositoryId: uuid("repository_id")
+    .notNull()
+    .references(() => repositories.id, { onDelete: "cascade" }),
 
-  CREATE TABLE IF NOT EXISTS symbols (
-    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    repository_id   UUID NOT NULL REFERENCES repositories(id) ON DELETE CASCADE,
+  // Tree-sitter extracted
+  symbol: text("symbol").notNull(),
+  file: text("file").notNull(),
+  type: symbolTypeEnum("type").notNull(),
+  visibility: visibilityEnum("visibility").notNull().default("public"),
 
-    -- tree-sitter extracted
-    symbol          TEXT NOT NULL,
-    file            TEXT NOT NULL,
-    type            symbol_type NOT NULL DEFAULT 'unknown',
-    visibility      visibility  NOT NULL DEFAULT 'public',
+  // LLM generated
+  blurb: text("blurb"),
+  implementation: text("implementation"),
+  tags: text("tags").array(),
 
-    -- LLM generated
-    blurb           TEXT,
-    implementation  TEXT,
-    tags            TEXT[] NOT NULL DEFAULT '{}',
+  // pgvector embedding (1536-dim for text-embedding-3-small)
+  embedding: vector("embedding", { dimensions: 1536 }),
 
-    -- pgvector embedding (1536-dim for text-embedding-3-small)
-    embedding       vector(1536),
-
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-
-    UNIQUE (repository_id, symbol, file)
-  );
-
-  CREATE INDEX IF NOT EXISTS symbols_embedding_idx
-    ON symbols USING hnsw (embedding vector_cosine_ops);
-
-  CREATE INDEX IF NOT EXISTS symbols_repository_id_idx
-    ON symbols (repository_id);
-`;
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
