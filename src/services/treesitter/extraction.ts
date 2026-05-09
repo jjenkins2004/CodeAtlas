@@ -7,6 +7,9 @@ import type {
 import { extractNodeText, getRequiredCapture } from "./utils.js";
 
 function buildCaptureMap(captures: Parser.QueryCapture[]): CaptureMap {
+  // Tree-sitter returns captures as a flat array like:
+  // [{ name: "symbol.name", node: ... }, { name: "symbol.definition", node: ... }].
+  // We normalize that into a map for easier lookup
   const byName = new Map<string, Parser.SyntaxNode>();
 
   for (const capture of captures) {
