@@ -120,23 +120,23 @@ async function initializeNodePg(pool: pg.Pool): Promise<void> {
 }
 
 export async function initializeSchema({
-  isMemory,
+  isMemory: _isMemory,
   pool,
   pglite,
 }: InitializeSchemaOptions): Promise<void> {
-  if (isMemory) {
-    if (!pglite) {
-      throw new Error("PGlite instance is required in in-memory mode.");
-    }
-
+  if (pglite) {
     await initializePGLite(pglite);
 
     return;
   }
 
-  if (!pool) {
-    throw new Error("Postgres pool is required in persistent mode.");
+  if (pool) {
+    await initializeNodePg(pool);
+
+    return;
   }
 
-  await initializeNodePg(pool);
+  throw new Error(
+    "Database initialization requires a PGlite instance or Postgres pool.",
+  );
 }

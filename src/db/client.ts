@@ -1,72 +1,38 @@
-import pg from "pg";
-import { drizzle as drizzleNodePg } from "drizzle-orm/node-postgres";
-import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import type { PgliteDatabase } from "drizzle-orm/pglite";
 import { PGlite } from "@electric-sql/pglite";
 import { vector } from "@electric-sql/pglite/vector";
 import * as schema from "./schema.js";
-import {
-  initializeSchema as initializeDatabaseSchema,
-} from "./schema.js";
+import { initializeSchema as initializeDatabaseSchema } from "./schema.js";
+import { resolvePersistentDataDir } from "./utils.js";
 
-const { Pool } = pg;
-export type DatabaseClient =
-  | NodePgDatabase<typeof schema>
-  | PgliteDatabase<typeof schema>;
+const APP_NAME = "CodeAtlas";
+
+export type DatabaseClient = PgliteDatabase<typeof schema>;
 
 export class DatabaseClientManager {
-  private readonly pool: pg.Pool | null;
-  private readonly pglite: PGlite | null;
+  private readonly pglite: PGlite;
   private readonly isMemory: boolean;
   private dbClient: DatabaseClient | null = null;
 
-  constructor(pool: pg.Pool, isMemory?: false);
-  constructor(pool: null, isMemory: true, pglite: PGlite);
-  constructor(
-    pool: pg.Pool | null,
-    isMemory = false,
-    pglite: PGlite | null = null,
-  ) {
-    this.pool = pool;
+  constructor(pglite: PGlite, isMemory = false) {
     this.isMemory = isMemory;
     this.pglite = pglite;
   }
 
   static create(isMemory = false): DatabaseClientManager {
-    if (isMemory) {
-      const pglite = new PGlite({ extensions: { vector } });
-      return new DatabaseClientManager(null, true, pglite);
-    }
+    const pglite = isMemory
+      ? new PGlite({ extensions: { vector } })
+      : new PGlite(resolvePersistentDataDir(APP_NAME), {
+          extensions: { vector },
+        });
 
-    return new DatabaseClientManager(
-      new Pool({
-        host: process.env["DB_HOST"] ?? "localhost",
-        port: parseInt(process.env["DB_PORT"] ?? "5432", 10),
-        database: process.env["DB_NAME"] ?? "codeatlas",
-        user: process.env["DB_USER"] ?? "postgres",
-        password: process.env["DB_PASSWORD"],
-        max: 10,
-      }),
-      false,
-    );
-  }
-
-  getPool(): pg.Pool {
-    if (!this.pool) {
-      throw new Error(
-        "Pool is not available when using in-memory database mode.",
-      );
-    }
-
-    return this.pool;
+    return new DatabaseClientManager(pglite, isMemory);
   }
 
   getDatabase(): DatabaseClient {
     if (!this.dbClient) {
-      this.dbClient = this.isMemory
-        ? drizzlePglite(this.pglite as PGlite, { schema })
-        : drizzleNodePg(this.pool as pg.Pool, { schema });
+      this.dbClient = drizzlePglite(this.pglite, { schema });
     }
 
     return this.dbClient;
@@ -75,17 +41,13 @@ export class DatabaseClientManager {
   async initializeSchema(): Promise<void> {
     await initializeDatabaseSchema({
       isMemory: this.isMemory,
-      pool: this.pool,
       pglite: this.pglite,
+      pool: null,
     });
   }
 
   async close(): Promise<void> {
-    if (this.isMemory) {
-      await (this.pglite as PGlite).close();
-    } else {
-      await (this.pool as pg.Pool).end();
-    }
+    await this.pglite.close();
 
     this.dbClient = null;
   }
