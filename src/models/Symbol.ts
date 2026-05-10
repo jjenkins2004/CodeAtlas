@@ -12,59 +12,51 @@ export type SymbolType = (typeof SYMBOL_TYPES)[number];
 
 export type Visibility = (typeof VISIBILITY_LEVELS)[number];
 
-export interface Symbol {
-  id: string;
+interface SymbolCoreFields {
   repositoryId: string;
-
-  // Metadata (tree-sitter extracted)
   symbol: string;
   file: string;
   type: SymbolType;
   visibility: Visibility;
+}
 
-  // Semantic fields (LLM generated)
+interface SymbolSemanticFields {
   blurb: string | null;
   implementation: string | null;
   tags: string[];
-
-  // Vector embedding of the concatenated semantic fields
   embedding: number[] | null;
+}
+
+interface SymbolSemanticInputFields {
+  blurb?: string;
+  implementation?: string;
+  tags?: string[];
+  embedding?: number[];
+}
+
+export interface Symbol extends SymbolCoreFields, SymbolSemanticFields {
+  id: string;
 
   createdAt: Date;
   updatedAt: Date;
 }
 
-export interface CreateSymbolInput {
-  repositoryId: string;
-  symbol: string;
-  file: string;
-  type: SymbolType;
-  visibility: Visibility;
-  blurb?: string;
-  implementation?: string;
-  tags?: string[];
-  embedding?: number[];
-}
+export interface CreateSymbolInput
+  extends SymbolCoreFields, SymbolSemanticInputFields {}
 
-export interface UpdateSymbolInput {
-  symbol?: string;
-  file?: string;
-  type?: SymbolType;
-  visibility?: Visibility;
-  blurb?: string;
-  implementation?: string;
-  tags?: string[];
-  embedding?: number[];
-}
+export interface UpdateSymbolInput
+  extends Partial<SymbolCoreFields>, SymbolSemanticInputFields {}
 
-export interface SymbolQueryResult {
-  id: string;
-  repositoryId: string;
-  symbol: string;
-  file: string;
-  type: SymbolType;
-  visibility: Visibility;
-  blurb: string | null;
-  tags: string[];
+export interface SymbolQueryResult extends Pick<
+  Symbol,
+  | "id"
+  | "repositoryId"
+  | "symbol"
+  | "file"
+  | "type"
+  | "visibility"
+  | "blurb"
+  | "tags"
+> {
   score: number;
 }

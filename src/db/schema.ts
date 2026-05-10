@@ -5,6 +5,7 @@ import {
   uuid,
   text,
   timestamp,
+  unique,
   vector,
 } from "drizzle-orm/pg-core";
 import path from "node:path";
@@ -71,6 +72,11 @@ export const symbols = pgTable(
       .defaultNow(),
   },
   (table) => [
+    unique("symbols_repository_symbol_file_unique").on(
+      table.repositoryId,
+      table.symbol,
+      table.file,
+    ),
     index("symbols_embedding_cosine_idx").using(
       "hnsw",
       table.embedding.op("vector_cosine_ops"),

@@ -42,9 +42,7 @@
         "repositories_path_unique": {
           "name": "repositories_path_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "path"
-          ]
+          "columns": ["path"]
         }
       },
       "policies": {},
@@ -157,18 +155,21 @@
           "name": "symbols_repository_id_repositories_id_fk",
           "tableFrom": "symbols",
           "tableTo": "repositories",
-          "columnsFrom": [
-            "repository_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["repository_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "symbols_repository_symbol_file_unique": {
+          "name": "symbols_repository_symbol_file_unique",
+          "nullsNotDistinct": false,
+          "columns": ["repository_id", "symbol", "file"]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -178,22 +179,12 @@
     "public.symbol_type": {
       "name": "symbol_type",
       "schema": "public",
-      "values": [
-        "function",
-        "class",
-        "enum",
-        "protocol",
-        "method"
-      ]
+      "values": ["function", "class", "enum", "protocol", "method"]
     },
     "public.visibility": {
       "name": "visibility",
       "schema": "public",
-      "values": [
-        "public",
-        "internal",
-        "private"
-      ]
+      "values": ["public", "internal", "private"]
     }
   },
   "schemas": {},

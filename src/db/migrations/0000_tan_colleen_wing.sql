@@ -20,7 +20,8 @@ CREATE TABLE "symbols" (
 	"tags" text[],
 	"embedding" vector(1536),
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "symbols_repository_symbol_file_unique" UNIQUE("repository_id","symbol","file")
 );
 --> statement-breakpoint
 ALTER TABLE "symbols" ADD CONSTRAINT "symbols_repository_id_repositories_id_fk" FOREIGN KEY ("repository_id") REFERENCES "public"."repositories"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
