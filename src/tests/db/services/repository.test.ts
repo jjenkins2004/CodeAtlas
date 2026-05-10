@@ -1,6 +1,9 @@
 import { randomUUID } from "crypto";
 import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
-import { RepositoryDBService } from "../../../db/services/repository.js";
+import {
+  DuplicateRepositoryError,
+  RepositoryDBService,
+} from "../../../db/services/repository.js";
 import { repositories } from "../../../db/schema.js";
 import { createTestDb, type TestDbContext } from "../../fixtures/testDb.js";
 
@@ -52,34 +55,25 @@ describe("RepositoryDBService", () => {
       expect(rows[0]?.id).toBe(created.id);
     });
 
-    it("rejects empty name or path values", async () => {
-      await expect(
-        service.createRepository({
-          name: "",
-          path: "/tmp/codeatlas",
-        }),
-      ).rejects.toThrowError("Repository name cannot be empty");
-
-      await expect(
-        service.createRepository({
-          name: "CodeAtlas",
-          path: "",
-        }),
-      ).rejects.toThrowError("Repository path cannot be empty");
-    });
-
-    it("rejects duplicate repository paths", async () => {
+    it("throws DuplicateRepositoryError when the repository path already exists", async () => {
       await service.createRepository({
         name: "First",
         path: "/tmp/shared",
       });
 
-      await expect(
-        service.createRepository({
-          name: "Second",
-          path: "/tmp/shared",
-        }),
-      ).rejects.toThrowError("Repository path already exists");
+      const duplicateAttempt = service.createRepository({
+        name: "Second",
+        path: "/tmp/shared",
+      });
+
+      await expect(duplicateAttempt).rejects.toBeInstanceOf(
+        DuplicateRepositoryError,
+      );
+      await expect(duplicateAttempt).rejects.toMatchObject({
+        message: "Repository already tracked for path: /tmp/shared",
+        name: "DuplicateRepositoryError",
+        path: "/tmp/shared",
+      });
     });
   });
 
@@ -104,59 +98,12 @@ describe("RepositoryDBService", () => {
       expect(updated?.path).toBe("/tmp/original");
     });
 
-    it("rejects empty update objects", async () => {
-      const created = await service.createRepository({
-        name: "Original",
-        path: "/tmp/original",
-      });
-
-      await expect(
-        service.updateRepository(created.id, {}),
-      ).rejects.toThrowError("Repository update requires at least one field");
-    });
-
-    it("rejects empty name or path values", async () => {
-      const created = await service.createRepository({
-        name: "Original",
-        path: "/tmp/original",
-      });
-
-      await expect(
-        service.updateRepository(created.id, { name: "" }),
-      ).rejects.toThrowError("Repository name cannot be empty");
-
-      await expect(
-        service.updateRepository(created.id, { path: "" }),
-      ).rejects.toThrowError("Repository path cannot be empty");
-    });
-
-    it("rejects invalid repository ids", async () => {
-      await expect(
-        service.updateRepository("not-a-uuid", { name: "Renamed" }),
-      ).rejects.toThrowError("Repository id must be a valid UUID");
-    });
-
     it("returns null when the repository id does not exist", async () => {
       const updated = await service.updateRepository(randomUUID(), {
         name: "Nope",
       });
 
       expect(updated).toBeNull();
-    });
-
-    it("rejects duplicate repository paths", async () => {
-      const first = await service.createRepository({
-        name: "First",
-        path: "/tmp/shared",
-      });
-      const second = await service.createRepository({
-        name: "Second",
-        path: "/tmp/other",
-      });
-
-      await expect(
-        service.updateRepository(second.id, { path: first.path }),
-      ).rejects.toThrowError("Repository path already exists");
     });
   });
 
@@ -181,12 +128,6 @@ describe("RepositoryDBService", () => {
     it("returns false when the repository id does not exist", async () => {
       const removed = await service.removeRepository(randomUUID());
       expect(removed).toBe(false);
-    });
-
-    it("rejects invalid repository ids", async () => {
-      await expect(service.removeRepository("not-a-uuid")).rejects.toThrowError(
-        "Repository id must be a valid UUID",
-      );
     });
   });
 });

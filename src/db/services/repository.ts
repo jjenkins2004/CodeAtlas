@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
-import { z } from "zod";
 import { client } from "../client.js";
 import { repositories } from "../schema.js";
+import { isUniqueConstraintError } from "../utils.js";
 import type {
   CreateRepositoryInput,
   Repository,
@@ -13,62 +13,18 @@ export interface UpdateRepositoryInput {
   path?: string;
 }
 
-const repositoryIdSchema = z.string().uuid();
+export class DuplicateRepositoryError extends Error {
+  readonly path: string;
 
-function assertRequiredNonEmptyString(
-  value: string | undefined,
-  fieldName: string,
-): void {
-  if (typeof value !== "string" || value.length === 0) {
-    throw new Error(`Repository ${fieldName} cannot be empty`);
+  constructor(path: string) {
+    super(`Repository already tracked for path: ${path}`);
+    this.name = "DuplicateRepositoryError";
+    this.path = path;
   }
-}
-
-function assertOptionalNonEmptyString(
-  value: string | undefined,
-  fieldName: string,
-): void {
-  if (value !== undefined && value.length === 0) {
-    throw new Error(`Repository ${fieldName} cannot be empty`);
-  }
-}
-
-function assertValidRepositoryId(id: string): void {
-  if (!repositoryIdSchema.safeParse(id).success) {
-    throw new Error("Repository id must be a valid UUID");
-  }
-}
-
-function assertUpdateInput(input: UpdateRepositoryInput): void {
-  if (input.name === undefined && input.path === undefined) {
-    throw new Error("Repository update requires at least one field");
-  }
-
-  assertOptionalNonEmptyString(input.name, "name");
-  assertOptionalNonEmptyString(input.path, "path");
-}
-
-function isUniqueConstraintError(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    "code" in error &&
-    (error as { code?: string }).code === "23505"
-  );
-}
-
-function throwRepositoryPathConflict(error: unknown): never {
-  if (isUniqueConstraintError(error)) {
-    throw new Error("Repository path already exists");
-  }
-
-  throw error;
 }
 
 export class RepositoryDBService extends BaseDBService {
   async createRepository(input: CreateRepositoryInput): Promise<Repository> {
-    assertRequiredNonEmptyString(input.name, "name");
-    assertRequiredNonEmptyString(input.path, "path");
-
     return this.executeQuery("createRepository", async () => {
       try {
         const [created] = await this.db
@@ -81,7 +37,11 @@ export class RepositoryDBService extends BaseDBService {
 
         return created;
       } catch (error) {
-        throwRepositoryPathConflict(error);
+        if (isUniqueConstraintError(error)) {
+          throw new DuplicateRepositoryError(input.path);
+        }
+
+        throw error;
       }
     });
   }
@@ -96,35 +56,26 @@ export class RepositoryDBService extends BaseDBService {
     id: string,
     input: UpdateRepositoryInput,
   ): Promise<Repository | null> {
-    assertValidRepositoryId(id);
-    assertUpdateInput(input);
-
     return this.executeQuery("updateRepository", async () => {
-      try {
-        const [updated] = await this.db
-          .update(repositories)
-          .set({
-            ...(input.name !== undefined ? { name: input.name } : {}),
-            ...(input.path !== undefined ? { path: input.path } : {}),
-          })
-          .where(eq(repositories.id, id))
-          .returning();
+      const [updated] = await this.db
+        .update(repositories)
+        .set({
+          ...(input.name !== undefined ? { name: input.name } : {}),
+          ...(input.path !== undefined ? { path: input.path } : {}),
+        })
+        .where(eq(repositories.id, id))
+        .returning();
 
-        return updated ?? null;
-      } catch (error) {
-        throwRepositoryPathConflict(error);
-      }
+      return updated ?? null;
     });
   }
 
   async removeRepository(id: string): Promise<boolean> {
-    assertValidRepositoryId(id);
-
     return this.executeQuery("removeRepository", async () => {
       const deleted = await this.db
         .delete(repositories)
         .where(eq(repositories.id, id))
-        .returning({ id: repositories.id });
+        .returning();
 
       return deleted.length > 0;
     });

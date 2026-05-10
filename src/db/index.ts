@@ -1,4 +1,5 @@
 export { client, DatabaseClientManager } from "./client.js";
+export { isUniqueConstraintError } from "./utils.js";
 export {
   initializeSchema,
   repositories,
