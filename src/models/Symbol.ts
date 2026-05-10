@@ -1,11 +1,16 @@
-export type SymbolType =
-  | "function"
-  | "class"
-  | "enum"
-  | "protocol"
-  | "method"
+export const SYMBOL_TYPES = [
+  "function",
+  "class",
+  "enum",
+  "protocol",
+  "method",
+] as const;
 
-export type Visibility = "public" | "internal" | "private";
+export const VISIBILITY_LEVELS = ["public", "internal", "private"] as const;
+
+export type SymbolType = (typeof SYMBOL_TYPES)[number];
+
+export type Visibility = (typeof VISIBILITY_LEVELS)[number];
 
 export interface Symbol {
   id: string;

@@ -1,5 +1,6 @@
-export { getPool, getDatabase, closePool } from "./client.js";
+export { client, DatabaseClientManager } from "./client.js";
 export {
+  initializeSchema,
   repositories,
   symbols,
   symbolTypeEnum,

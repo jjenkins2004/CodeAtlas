@@ -1,5 +1,5 @@
 import { createApp } from "./server/app.js";
-import { closePool } from "./db/index.js";
+import { client } from "./db/index.js";
 
 const PORT = parseInt(process.env["PORT"] ?? "3000", 10);
 
@@ -12,7 +12,7 @@ const server = app.listen(PORT, () => {
 async function shutdown(): Promise<void> {
   console.log("Shutting down…");
   server.close();
-  await closePool();
+  await client.close();
   process.exit(0);
 }
 

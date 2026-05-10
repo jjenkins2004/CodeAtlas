@@ -1,4 +1,5 @@
 import {
+  index,
   pgTable,
   pgEnum,
   uuid,
@@ -6,27 +7,24 @@ import {
   timestamp,
   vector,
 } from "drizzle-orm/pg-core";
-import { sql } from "drizzle-orm";
+import path from "node:path";
+import type pg from "pg";
+import type { PGlite } from "@electric-sql/pglite";
+import { drizzle as drizzleNodePg } from "drizzle-orm/node-postgres";
+import { migrate as migrateNodePg } from "drizzle-orm/node-postgres/migrator";
+import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
+import { migrate as migratePglite } from "drizzle-orm/pglite/migrator";
+import { SYMBOL_TYPES, VISIBILITY_LEVELS } from "../models/Symbol.js";
 
 /**
  * Enum for symbol types extracted by tree-sitter.
  */
-export const symbolTypeEnum = pgEnum("symbol_type", [
-  "function",
-  "class",
-  "enum",
-  "protocol",
-  "method",
-]);
+export const symbolTypeEnum = pgEnum("symbol_type", [...SYMBOL_TYPES]);
 
 /**
  * Enum for symbol visibility levels.
  */
-export const visibilityEnum = pgEnum("visibility", [
-  "public",
-  "internal",
-  "private",
-]);
+export const visibilityEnum = pgEnum("visibility", [...VISIBILITY_LEVELS]);
 
 /**
  * Repositories table — tracks codebases being indexed.
@@ -43,30 +41,96 @@ export const repositories = pgTable("repositories", {
 /**
  * Symbols table — stores extracted public symbols and their embeddings.
  */
-export const symbols = pgTable("symbols", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  repositoryId: uuid("repository_id")
-    .notNull()
-    .references(() => repositories.id, { onDelete: "cascade" }),
+export const symbols = pgTable(
+  "symbols",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    repositoryId: uuid("repository_id")
+      .notNull()
+      .references(() => repositories.id, { onDelete: "cascade" }),
 
-  // Tree-sitter extracted
-  symbol: text("symbol").notNull(),
-  file: text("file").notNull(),
-  type: symbolTypeEnum("type").notNull(),
-  visibility: visibilityEnum("visibility").notNull().default("public"),
+    // Tree-sitter extracted
+    symbol: text("symbol").notNull(),
+    file: text("file").notNull(),
+    type: symbolTypeEnum("type").notNull(),
+    visibility: visibilityEnum("visibility").notNull().default("public"),
 
-  // LLM generated
-  blurb: text("blurb"),
-  implementation: text("implementation"),
-  tags: text("tags").array(),
+    // LLM generated
+    blurb: text("blurb"),
+    implementation: text("implementation"),
+    tags: text("tags").array(),
 
-  // pgvector embedding (1536-dim for text-embedding-3-small)
-  embedding: vector("embedding", { dimensions: 1536 }),
+    // pgvector embedding (1536-dim for text-embedding-3-small)
+    embedding: vector("embedding", { dimensions: 1536 }),
 
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("symbols_embedding_cosine_idx").using(
+      "hnsw",
+      table.embedding.op("vector_cosine_ops"),
+    ),
+  ],
+);
+
+const MIGRATIONS_FOLDER = path.resolve(process.cwd(), "src/db/migrations");
+const EXTENSION_HARNESS_SQL = [
+  "CREATE EXTENSION IF NOT EXISTS vector;",
+  "CREATE EXTENSION IF NOT EXISTS pgcrypto;",
+];
+
+export interface InitializeSchemaOptions {
+  isMemory: boolean;
+  pool: pg.Pool | null;
+  pglite: PGlite | null;
+}
+
+async function initializePGLite(pglite: PGlite): Promise<void> {
+  for (const statement of EXTENSION_HARNESS_SQL) {
+    try {
+      await pglite.exec(statement);
+    } catch {
+      // PGlite may expose extensions without supporting CREATE EXTENSION.
+      console.error("Failed to create extension: ", statement);
+    }
+  }
+
+  const db = drizzlePglite(pglite);
+  await migratePglite(db, { migrationsFolder: MIGRATIONS_FOLDER });
+}
+
+async function initializeNodePg(pool: pg.Pool): Promise<void> {
+  for (const statement of EXTENSION_HARNESS_SQL) {
+    await pool.query(statement);
+  }
+
+  const db = drizzleNodePg(pool);
+  await migrateNodePg(db, { migrationsFolder: MIGRATIONS_FOLDER });
+}
+
+export async function initializeSchema({
+  isMemory,
+  pool,
+  pglite,
+}: InitializeSchemaOptions): Promise<void> {
+  if (isMemory) {
+    if (!pglite) {
+      throw new Error("PGlite instance is required in in-memory mode.");
+    }
+
+    await initializePGLite(pglite);
+
+    return;
+  }
+
+  if (!pool) {
+    throw new Error("Postgres pool is required in persistent mode.");
+  }
+
+  await initializeNodePg(pool);
+}

@@ -1,5 +1,4 @@
-import type { DrizzleConfig } from "drizzle-orm";
-import type { PgDatabase } from "drizzle-orm/pg-core";
+import type { DatabaseClient } from "../client.js";
 
 /**
  * Base class for all database services.
@@ -10,9 +9,9 @@ import type { PgDatabase } from "drizzle-orm/pg-core";
  * - Connection lifecycle management via the shared drizzle client
  */
 export abstract class BaseDBService {
-  protected db: PgDatabase<any>;
+  protected db: DatabaseClient;
 
-  constructor(db: PgDatabase<any>) {
+  constructor(db: DatabaseClient) {
     this.db = db;
   }
 
@@ -48,17 +47,6 @@ export abstract class BaseDBService {
       );
       throw error;
     }
-  }
-
-  /**
-   * Wraps a mutation (insert/update/delete) with logging.
-   * Same as executeQuery but semantically for writes.
-   */
-  protected async executeMutation<T>(
-    operationName: string,
-    fn: () => Promise<T>,
-  ): Promise<T> {
-    return this.executeQuery(operationName, fn);
   }
 
   /**
