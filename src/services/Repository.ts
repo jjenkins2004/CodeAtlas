@@ -23,13 +23,13 @@ import {
   type SymbolUpdateGuardServiceConstructor,
   type SymbolUpdateGuardServicePort,
 } from "./SymbolUpdateGuardService.js";
-import { Watcher } from "./Watcher.js";
+import { Watcher, type WatcherPort } from "./Watcher.js";
 
 export interface RepositoryOrchestratorServiceConfig {
   repositoryDBService?: RepositoryDBServicePort;
   indexService?: IndexerServicePort;
   symbolUpdateGuardServiceType?: SymbolUpdateGuardServiceConstructor;
-  watcher?: Watcher;
+  watcher?: WatcherPort;
 }
 
 const defaultRepositoryOrchestratorServiceConfig: Required<RepositoryOrchestratorServiceConfig> =

@@ -18,7 +18,13 @@ export interface WatcherConfig {
   ignoreFilter?: IgnoreFilterInstance;
 }
 
-export class Watcher {
+export interface WatcherPort {
+  start(config: WatcherConfig): Promise<void>;
+  stop(repositoryId: string): Promise<void>;
+  stopAll(): Promise<void>;
+}
+
+export class Watcher implements WatcherPort {
   private activeWatchers: Map<string, chokidar.FSWatcher>;
 
   constructor() {
