@@ -8,6 +8,7 @@ import {
   CreateRepositoryInput,
   Repository,
 } from "../models/Repository.js";
+import type { Symbol } from "../models/Symbol.js";
 import {
   repositoryDBService as defaultRepositoryDBService,
   type RepositoryDBServicePort,
@@ -18,15 +19,16 @@ import {
   type IndexerServicePort,
 } from "./IndexerService.js";
 import {
-  FileReindexService,
-  type FileReindexServicePort,
-} from "./FileReindex.js";
+  SymbolUpdateGuardService,
+  type SymbolUpdateGuardServiceConstructor,
+  type SymbolUpdateGuardServicePort,
+} from "./SymbolUpdateGuardService.js";
 import { Watcher } from "./Watcher.js";
 
 export interface RepositoryOrchestratorServiceConfig {
   repositoryDBService?: RepositoryDBServicePort;
   indexService?: IndexerServicePort;
-  fileReindexService?: FileReindexServicePort;
+  symbolUpdateGuardServiceType?: SymbolUpdateGuardServiceConstructor;
   watcher?: Watcher;
 }
 
@@ -34,26 +36,31 @@ const defaultRepositoryOrchestratorServiceConfig: Required<RepositoryOrchestrato
   {
     repositoryDBService: defaultRepositoryDBService,
     indexService: defaultIndexerService,
-    fileReindexService: new FileReindexService(),
+    symbolUpdateGuardServiceType: SymbolUpdateGuardService,
     watcher: new Watcher(),
   };
 
 export class RepositoryOrchestratorService {
   private readonly config: Required<RepositoryOrchestratorServiceConfig>;
+  private readonly symbolUpdateGuardServices = new Map<
+    string,
+    SymbolUpdateGuardServicePort
+  >();
 
   constructor(config: RepositoryOrchestratorServiceConfig = {}) {
     this.config = {
       ...defaultRepositoryOrchestratorServiceConfig,
       ...config,
     };
-
-    this.config.fileReindexService.registerOnFileShouldBeReindexed(
-      (filePath: string) => {
-        this.handleFileShouldBeReindexed(filePath);
-      },
-    );
   }
 
+  /**
+   * Validates and normalizes a repository path, creates the repository record,
+   * starts the file watcher, and kicks off an initial repository index.
+   *
+   * If any step fails, the repository record and watcher registration are rolled
+   * back before the error is surfaced to the caller.
+   */
   async trackRepository(input: CreateRepositoryInput): Promise<Repository> {
     const repositoryPath = await this.validateAndNormalizeRepositoryPath(
       input.path,
@@ -67,17 +74,25 @@ export class RepositoryOrchestratorService {
     const createdRepository =
       await this.config.repositoryDBService.createRepository(repositoryInput);
 
-    await this.runTrackStep(createdRepository.id, () =>
-      this.config.indexService.indexRepository(createdRepository),
+    const symbolUpdateGuardService = this.getOrCreateSymbolUpdateGuardService(
+      createdRepository.id,
     );
 
     await this.runTrackStep(createdRepository.id, () =>
-      this.startWatcher(createdRepository),
+      this.startWatcher(createdRepository, symbolUpdateGuardService),
+    );
+
+    await this.runTrackStep(createdRepository.id, () =>
+      this.config.indexService.indexRepository(createdRepository.id),
     );
 
     return createdRepository;
   }
 
+  /**
+   * Stops tracking an existing repository, shuts down its watcher, removes the
+   * repository record, and clears any cached symbol update guard state.
+   */
   async untrackRepository(repositoryId: string): Promise<void> {
     const repository =
       await this.config.repositoryDBService.getRepository(repositoryId);
@@ -94,23 +109,52 @@ export class RepositoryOrchestratorService {
     if (!removed) {
       throw new RepositoryNotFoundError(repositoryId);
     }
+
+    this.symbolUpdateGuardServices.delete(repositoryId);
   }
 
-  private async startWatcher(repository: Repository): Promise<void> {
+  private async startWatcher(
+    repository: Repository,
+    symbolUpdateGuardService: SymbolUpdateGuardServicePort,
+  ): Promise<void> {
     await this.config.watcher.start({
       repositoryId: repository.id,
       rootPath: repository.path,
       ignoreFilter: IgnoreFilter.createFilter(repository.path),
-      onCreation: (filePath) => {},
-      onUpdate: (filePath) => {
-        this.config.fileReindexService.fileWasUpdated(filePath);
+      onCreation: (filePath) => {
+        symbolUpdateGuardService.fileWasCreated(filePath);
       },
-      onDeletion: (filePath) => {},
+      onUpdate: (filePath) => {
+        symbolUpdateGuardService.fileWasUpdated(filePath);
+      },
+      onDeletion: (filePath) => {
+        symbolUpdateGuardService.fileWasDeleted(filePath);
+      },
     });
   }
 
-  private handleFileShouldBeReindexed(filePath: string): void {
-    this.config.indexService.indexFile(filePath);
+  private getOrCreateSymbolUpdateGuardService(
+    repositoryId: string,
+  ): SymbolUpdateGuardServicePort {
+    const existingSymbolUpdateGuardService =
+      this.symbolUpdateGuardServices.get(repositoryId);
+
+    if (existingSymbolUpdateGuardService) {
+      return existingSymbolUpdateGuardService;
+    }
+
+    const symbolUpdateGuardService =
+      new this.config.symbolUpdateGuardServiceType(repositoryId);
+
+    symbolUpdateGuardService.registerOnSymbolShouldBeReindexed(
+      (symbol: Symbol) => {
+        void this.config.indexService.indexSymbol(symbol);
+      },
+    );
+
+    this.symbolUpdateGuardServices.set(repositoryId, symbolUpdateGuardService);
+
+    return symbolUpdateGuardService;
   }
 
   private async validateAndNormalizeRepositoryPath(
@@ -152,6 +196,7 @@ export class RepositoryOrchestratorService {
 
   private async rollbackCreatedRepository(repositoryId: string): Promise<void> {
     await this.safeStopWatcher(repositoryId);
+    this.symbolUpdateGuardServices.delete(repositoryId);
 
     try {
       const removed =
@@ -190,13 +235,23 @@ export class RepositoryOrchestratorService {
 
 export const repositoryService = new RepositoryOrchestratorService();
 
+/**
+ * Validates and registers a repository, then begins tracking and indexing it.
+ */
+export async function trackRepository(
+  input: CreateRepositoryInput,
+): Promise<Repository> {
+  return repositoryService.trackRepository(input);
+}
+
+/**
+ * Stops tracking a repository and removes its repository record.
+ */
+export async function untrackRepository(repositoryId: string): Promise<void> {
+  return repositoryService.untrackRepository(repositoryId);
+}
+
 export const RepositoryService = {
-  trackRepository: (input: CreateRepositoryInput) =>
-    repositoryService.trackRepository(input),
-  untrackRepository: (repositoryId: string) =>
-    repositoryService.untrackRepository(repositoryId),
-  track: (input: CreateRepositoryInput) =>
-    repositoryService.trackRepository(input),
-  untrack: (repositoryId: string, _shouldDelete = false) =>
-    repositoryService.untrackRepository(repositoryId),
+  track: trackRepository,
+  untrack: untrackRepository,
 };

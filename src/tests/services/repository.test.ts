@@ -1,9 +1,9 @@
 import { describe, expect, it, afterEach, vi } from "vitest";
 import {
-  RepositoryIndexingError,
   RepositoryNotFoundError,
   type CreateRepositoryInput,
 } from "../../models/Repository.js";
+import type { Symbol as IndexedSymbol } from "../../models/Symbol.js";
 import {
   RepositoryOrchestratorService,
   type RepositoryOrchestratorServiceConfig,
@@ -11,11 +11,7 @@ import {
 import { Watcher } from "../../services/Watcher.js";
 import { createMockRepoDBService } from "../fixtures/mockRepoDBService.js";
 import { createMockRepositoryIndexerService } from "../fixtures/mockRepositoryIndexerService.js";
-import { createMockFileReindexService } from "../fixtures/mockFileReindexService.js";
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+import { createMockSymbolUpdateGuardServiceType } from "../fixtures/mockSymbolUpdateGuardService.js";
 
 function makeWatcherMock() {
   return {
@@ -35,29 +31,39 @@ function makeRepositoryService(config: RepositoryOrchestratorServiceConfig) {
   return new RepositoryOrchestratorService(config);
 }
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
+function makeSymbol(): IndexedSymbol {
+  return {
+    id: "symbol-1",
+    repositoryId: "repo-0",
+    symbol: "Example.run",
+    file: "src/example.ts",
+    type: "function",
+    visibility: "public",
+    blurb: null,
+    implementation: null,
+    tags: [],
+    embedding: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+}
 
 describe("RepositoryOrchestratorService", () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  // ---------------------------------------------------------------------------
-  // trackRepository()
-  // ---------------------------------------------------------------------------
-
   describe("trackRepository()", () => {
-    it("rolls back a repository when track step fails", async () => {
+    it("registers the symbol callback and starts the watcher", async () => {
       const repositoryDBService = createMockRepoDBService();
       const repositoryIndexerService = createMockRepositoryIndexerService();
-      const fileReindexService = createMockFileReindexService();
+      const symbolUpdateGuardServiceType =
+        createMockSymbolUpdateGuardServiceType();
       const watcher = makeWatcherMock();
       const service = makeRepositoryService({
         repositoryDBService,
-        repositoryIndexerService,
-        fileReindexService,
+        indexService: repositoryIndexerService,
+        symbolUpdateGuardServiceType,
         watcher: watcher as unknown as Watcher,
       });
       const createdRepository = {
@@ -69,51 +75,49 @@ describe("RepositoryOrchestratorService", () => {
 
       repositoryDBService.createRepository.mockResolvedValue(createdRepository);
       repositoryDBService.removeRepository.mockResolvedValue(true);
-      repositoryIndexerService.indexRepository.mockRejectedValue(
-        new Error("index not implemented"),
-      );
-      fileReindexService.registerOnFileShouldBeReindexed.mockImplementation(
-        () => undefined,
-      );
+      repositoryIndexerService.indexSymbol.mockResolvedValue(undefined);
+      watcher.start.mockResolvedValue(undefined);
 
-      const trackAttempt = service.trackRepository(makeRepositoryInput());
+      const created = await service.trackRepository(makeRepositoryInput());
 
-      await expect(trackAttempt).rejects.toBeInstanceOf(
-        RepositoryIndexingError,
-      );
-      await expect(trackAttempt).rejects.toMatchObject({
-        repositoryId: "repo-0",
-        message:
-          "Failed to index repository repo-0 during repository reindex: index not implemented",
-      });
-
-      expect(repositoryIndexerService.indexRepository).toHaveBeenCalledWith(
-        createdRepository,
-      );
-      expect(
-        fileReindexService.registerOnFileShouldBeReindexed,
-      ).toHaveBeenCalledWith(expect.any(Function));
-      expect(repositoryDBService.removeRepository).toHaveBeenCalledWith(
+      expect(created).toEqual(createdRepository);
+      expect(symbolUpdateGuardServiceType.instances).toHaveLength(1);
+      expect(symbolUpdateGuardServiceType.instances[0]?.repositoryId).toBe(
         "repo-0",
       );
-      expect(watcher.stop).toHaveBeenCalledWith("repo-0");
+      expect(
+        symbolUpdateGuardServiceType.instances[0]
+          ?.registerOnSymbolShouldBeReindexed,
+      ).toHaveBeenCalledWith(expect.any(Function));
+      expect(watcher.start).toHaveBeenCalledWith(
+        expect.objectContaining({ repositoryId: "repo-0" }),
+      );
+      expect(repositoryIndexerService.indexSymbol).not.toHaveBeenCalled();
+
+      const registeredCallback = symbolUpdateGuardServiceType.instances[0]
+        ?.registerOnSymbolShouldBeReindexed.mock.calls[0]?.[0] as
+        | ((symbol: IndexedSymbol) => void)
+        | undefined;
+
+      registeredCallback?.(makeSymbol());
+
+      expect(repositoryIndexerService.indexSymbol).toHaveBeenCalledWith(
+        makeSymbol(),
+      );
     });
   });
-
-  // ---------------------------------------------------------------------------
-  // untrackRepository()
-  // ---------------------------------------------------------------------------
 
   describe("untrackRepository()", () => {
     it("stops the watcher and removes an existing repository", async () => {
       const repositoryDBService = createMockRepoDBService();
       const repositoryIndexerService = createMockRepositoryIndexerService();
-      const fileReindexService = createMockFileReindexService();
+      const symbolUpdateGuardServiceType =
+        createMockSymbolUpdateGuardServiceType();
       const watcher = makeWatcherMock();
       const service = makeRepositoryService({
         repositoryDBService,
-        repositoryIndexerService,
-        fileReindexService,
+        indexService: repositoryIndexerService,
+        symbolUpdateGuardServiceType,
         watcher: watcher as unknown as Watcher,
       });
 
@@ -124,7 +128,7 @@ describe("RepositoryOrchestratorService", () => {
         createdAt: new Date(),
       });
       repositoryDBService.removeRepository.mockResolvedValue(true);
-      fileReindexService.registerOnFileShouldBeReindexed.mockImplementation(
+      symbolUpdateGuardServiceType.instances[0]?.registerOnSymbolShouldBeReindexed.mockImplementation(
         () => undefined,
       );
 
@@ -139,17 +143,18 @@ describe("RepositoryOrchestratorService", () => {
     it("throws RepositoryNotFoundError when the repository does not exist", async () => {
       const repositoryDBService = createMockRepoDBService();
       const repositoryIndexerService = createMockRepositoryIndexerService();
-      const fileReindexService = createMockFileReindexService();
+      const symbolUpdateGuardServiceType =
+        createMockSymbolUpdateGuardServiceType();
       const watcher = makeWatcherMock();
       const service = makeRepositoryService({
         repositoryDBService,
-        repositoryIndexerService,
-        fileReindexService,
+        indexService: repositoryIndexerService,
+        symbolUpdateGuardServiceType,
         watcher: watcher as unknown as Watcher,
       });
 
       repositoryDBService.getRepository.mockResolvedValue(null);
-      fileReindexService.registerOnFileShouldBeReindexed.mockImplementation(
+      symbolUpdateGuardServiceType.instances[0]?.registerOnSymbolShouldBeReindexed.mockImplementation(
         () => undefined,
       );
 
@@ -160,20 +165,17 @@ describe("RepositoryOrchestratorService", () => {
     });
   });
 
-  // ---------------------------------------------------------------------------
-  // watcher callback wiring
-  // ---------------------------------------------------------------------------
-
   describe("watcher wiring", () => {
-    it("forwards update events to the file reindex service", async () => {
+    it("forwards update events to the symbol guard service", async () => {
       const repositoryDBService = createMockRepoDBService();
       const repositoryIndexerService = createMockRepositoryIndexerService();
-      const fileReindexService = createMockFileReindexService();
+      const symbolUpdateGuardServiceType =
+        createMockSymbolUpdateGuardServiceType();
       const watcher = makeWatcherMock();
       const service = makeRepositoryService({
         repositoryDBService,
-        repositoryIndexerService,
-        fileReindexService,
+        indexService: repositoryIndexerService,
+        symbolUpdateGuardServiceType,
         watcher: watcher as unknown as Watcher,
       });
       const createdRepository = {
@@ -185,8 +187,7 @@ describe("RepositoryOrchestratorService", () => {
 
       repositoryDBService.createRepository.mockResolvedValue(createdRepository);
       repositoryDBService.removeRepository.mockResolvedValue(true);
-      repositoryIndexerService.indexRepository.mockResolvedValue(undefined);
-      fileReindexService.registerOnFileShouldBeReindexed.mockImplementation(
+      symbolUpdateGuardServiceType.instances[0]?.registerOnSymbolShouldBeReindexed.mockImplementation(
         () => undefined,
       );
       watcher.start.mockResolvedValue(undefined);
@@ -197,9 +198,9 @@ describe("RepositoryOrchestratorService", () => {
 
       watcherConfig.onUpdate("/tmp/example.ts");
 
-      expect(fileReindexService.fileWasUpdated).toHaveBeenCalledWith(
-        "/tmp/example.ts",
-      );
+      expect(
+        symbolUpdateGuardServiceType.instances[0]?.fileWasUpdated,
+      ).toHaveBeenCalledWith("/tmp/example.ts");
     });
   });
 });
