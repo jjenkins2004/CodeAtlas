@@ -14,9 +14,9 @@ import {
 } from "../db/services/repository.js";
 import { IgnoreFilter } from "./IgnoreFilter.js";
 import {
-  repositoryIndexerService as defaultRepositoryIndexerService,
-  type RepositoryIndexerServicePort,
-} from "./RepositoryIndexer.js";
+  indexerService as defaultIndexerService,
+  type IndexerServicePort,
+} from "./IndexerService.js";
 import {
   FileReindexService,
   type FileReindexServicePort,
@@ -25,7 +25,7 @@ import { Watcher } from "./Watcher.js";
 
 export interface RepositoryOrchestratorServiceConfig {
   repositoryDBService?: RepositoryDBServicePort;
-  repositoryIndexerService?: RepositoryIndexerServicePort;
+  indexService?: IndexerServicePort;
   fileReindexService?: FileReindexServicePort;
   watcher?: Watcher;
 }
@@ -33,7 +33,7 @@ export interface RepositoryOrchestratorServiceConfig {
 const defaultRepositoryOrchestratorServiceConfig: Required<RepositoryOrchestratorServiceConfig> =
   {
     repositoryDBService: defaultRepositoryDBService,
-    repositoryIndexerService: defaultRepositoryIndexerService,
+    indexService: defaultIndexerService,
     fileReindexService: new FileReindexService(),
     watcher: new Watcher(),
   };
@@ -68,7 +68,7 @@ export class RepositoryOrchestratorService {
       await this.config.repositoryDBService.createRepository(repositoryInput);
 
     await this.runTrackStep(createdRepository.id, () =>
-      this.config.repositoryIndexerService.indexRepository(createdRepository),
+      this.config.indexService.indexRepository(createdRepository),
     );
 
     await this.runTrackStep(createdRepository.id, () =>
@@ -110,7 +110,7 @@ export class RepositoryOrchestratorService {
   }
 
   private handleFileShouldBeReindexed(filePath: string): void {
-    void filePath;
+    this.config.indexService.indexFile(filePath);
   }
 
   private async validateAndNormalizeRepositoryPath(

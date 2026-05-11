@@ -1,15 +1,17 @@
 import { vi } from "vitest";
-import type { RepositoryIndexerServicePort } from "../../services/RepositoryIndexer.js";
+import type { IndexerServicePort } from "../../services/IndexerService.js";
 
-export type MockRepositoryIndexerService = RepositoryIndexerServicePort & {
+export type MockRepositoryIndexerService = IndexerServicePort & {
   indexRepository: ReturnType<typeof vi.fn>;
+  indexFile: ReturnType<typeof vi.fn>;
 };
 
 export function createMockRepositoryIndexerService(
-  overrides: Partial<RepositoryIndexerServicePort> = {},
+  overrides: Partial<IndexerServicePort> = {},
 ): MockRepositoryIndexerService {
   return {
     indexRepository: vi.fn(),
+    indexFile: vi.fn(),
     ...overrides,
   } as MockRepositoryIndexerService;
 }
