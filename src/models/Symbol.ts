@@ -20,7 +20,7 @@ interface SymbolCoreFields {
   visibility: Visibility;
 }
 
-interface SymbolSemanticFields {
+export interface SymbolSemanticFields {
   blurb: string | null;
   implementation: string | null;
   tags: string[];

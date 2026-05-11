@@ -9,15 +9,28 @@ import {
   Repository,
 } from "../models/Repository.js";
 import {
-  repositoryDBService,
+  repositoryDBService as defaultRepositoryDBService,
+  type RepositoryDBServicePort,
 } from "../db/services/repository.js";
 import { IgnoreFilter } from "./IgnoreFilter.js";
+import {
+  repositoryIndexerService as defaultRepositoryIndexerService,
+  type RepositoryIndexerServicePort,
+} from "./RepositoryIndexer.js";
 import { Watcher } from "./Watcher.js";
 
 export class RepositoryOrchestratorService {
+  private readonly repositoryDBService: RepositoryDBServicePort;
+  private readonly repositoryIndexerService: RepositoryIndexerServicePort;
   private readonly watcher: Watcher;
 
-  constructor(watcher: Watcher = new Watcher()) {
+  constructor(
+    repositoryDBService: RepositoryDBServicePort = defaultRepositoryDBService,
+    repositoryIndexerService: RepositoryIndexerServicePort = defaultRepositoryIndexerService,
+    watcher: Watcher = new Watcher(),
+  ) {
+    this.repositoryDBService = repositoryDBService;
+    this.repositoryIndexerService = repositoryIndexerService;
     this.watcher = watcher;
   }
 
@@ -32,11 +45,11 @@ export class RepositoryOrchestratorService {
     };
 
     const createdRepository =
-      await repositoryDBService.createRepository(repositoryInput);
+      await this.repositoryDBService.createRepository(repositoryInput);
 
-    await this.runTrackStep(createdRepository.id, () => {
-      throw new Error("index not implemented");
-    });
+    await this.runTrackStep(createdRepository.id, () =>
+      this.repositoryIndexerService.indexRepository(createdRepository),
+    );
 
     await this.runTrackStep(createdRepository.id, () =>
       this.startWatcher(createdRepository),
@@ -46,7 +59,8 @@ export class RepositoryOrchestratorService {
   }
 
   async untrackRepository(repositoryId: string): Promise<void> {
-    const repository = await repositoryDBService.getRepository(repositoryId);
+    const repository =
+      await this.repositoryDBService.getRepository(repositoryId);
 
     if (!repository) {
       throw new RepositoryNotFoundError(repositoryId);
@@ -54,7 +68,8 @@ export class RepositoryOrchestratorService {
 
     await this.safeStopWatcher(repositoryId);
 
-    const removed = await repositoryDBService.removeRepository(repositoryId);
+    const removed =
+      await this.repositoryDBService.removeRepository(repositoryId);
 
     if (!removed) {
       throw new RepositoryNotFoundError(repositoryId);
@@ -62,11 +77,11 @@ export class RepositoryOrchestratorService {
   }
 
   async listRepositories(): Promise<Repository[]> {
-    return repositoryDBService.listRepositories();
+    return this.repositoryDBService.listRepositories();
   }
 
   async getRepository(repositoryId: string): Promise<Repository | null> {
-    return repositoryDBService.getRepository(repositoryId);
+    return this.repositoryDBService.getRepository(repositoryId);
   }
 
   private async startWatcher(repository: Repository): Promise<void> {
@@ -121,7 +136,8 @@ export class RepositoryOrchestratorService {
     await this.safeStopWatcher(repositoryId);
 
     try {
-      const removed = await repositoryDBService.removeRepository(repositoryId);
+      const removed =
+        await this.repositoryDBService.removeRepository(repositoryId);
 
       if (!removed) {
         console.warn(

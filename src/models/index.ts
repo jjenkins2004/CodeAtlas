@@ -8,6 +8,7 @@ export type {
 } from "./Repository.js";
 export type {
   Symbol,
+  SymbolSemanticFields,
   SymbolType,
   Visibility,
   CreateSymbolInput,

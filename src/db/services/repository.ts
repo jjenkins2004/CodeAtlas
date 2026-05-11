@@ -13,6 +13,17 @@ export interface UpdateRepositoryInput {
   path?: string;
 }
 
+export interface RepositoryDBServicePort {
+  listRepositories(): Promise<Repository[]>;
+  getRepository(id: string): Promise<Repository | null>;
+  createRepository(input: CreateRepositoryInput): Promise<Repository>;
+  updateRepository(
+    id: string,
+    input: UpdateRepositoryInput,
+  ): Promise<Repository | null>;
+  removeRepository(id: string): Promise<boolean>;
+}
+
 export class DuplicateRepositoryError extends Error {
   readonly path: string;
 
@@ -23,7 +34,10 @@ export class DuplicateRepositoryError extends Error {
   }
 }
 
-export class RepositoryDBService extends BaseDBService {
+export class RepositoryDBService
+  extends BaseDBService
+  implements RepositoryDBServicePort
+{
   async listRepositories(): Promise<Repository[]> {
     return this.executeQuery("listRepositories", async () => {
       return this.db.select().from(repositories);

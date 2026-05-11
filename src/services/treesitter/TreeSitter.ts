@@ -23,12 +23,10 @@ export interface TreeSitterServiceConfig {
  * 4) Delegate symbol extraction to the adapter.
  */
 export class TreeSitterService {
-  private parser: Parser;
   private adaptersById: Map<string, BaseTreeSitterLanguageAdapter>;
   private adaptersByExtension: Map<string, BaseTreeSitterLanguageAdapter>;
 
   constructor(config: TreeSitterServiceConfig = {}) {
-    this.parser = new Parser();
     this.adaptersById = new Map();
     this.adaptersByExtension = new Map();
 

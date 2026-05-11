@@ -1,12 +1,13 @@
 import { describe, expect, it, afterEach, vi } from "vitest";
-import { repositoryDBService } from "../../db/services/repository.js";
 import {
   RepositoryIndexingError,
   RepositoryNotFoundError,
   type CreateRepositoryInput,
 } from "../../models/Repository.js";
-import { RepositoryOrchestratorService } from "../../services/repository.js";
+import { RepositoryOrchestratorService } from "../../services/Repository.js";
 import { Watcher } from "../../services/Watcher.js";
+import { createMockRepoDBService } from "../fixtures/mockRepoDBService.js";
+import { createMockRepositoryIndexerService } from "../fixtures/mockRepositoryIndexerService.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -41,8 +42,12 @@ describe("RepositoryOrchestratorService", () => {
 
   describe("trackRepository()", () => {
     it("rolls back a repository when track step fails", async () => {
+      const repositoryDBService = createMockRepoDBService();
+      const repositoryIndexerService = createMockRepositoryIndexerService();
       const watcher = makeWatcherMock();
       const service = new RepositoryOrchestratorService(
+        repositoryDBService,
+        repositoryIndexerService,
         watcher as unknown as Watcher,
       );
       const createdRepository = {
@@ -52,12 +57,11 @@ describe("RepositoryOrchestratorService", () => {
         createdAt: new Date(),
       };
 
-      vi.spyOn(repositoryDBService, "createRepository").mockResolvedValue(
-        createdRepository,
+      repositoryDBService.createRepository.mockResolvedValue(createdRepository);
+      repositoryDBService.removeRepository.mockResolvedValue(true);
+      repositoryIndexerService.indexRepository.mockRejectedValue(
+        new Error("index not implemented"),
       );
-      const removeRepositorySpy = vi
-        .spyOn(repositoryDBService, "removeRepository")
-        .mockResolvedValue(true);
 
       const trackAttempt = service.trackRepository(makeRepositoryInput());
 
@@ -67,10 +71,15 @@ describe("RepositoryOrchestratorService", () => {
       await expect(trackAttempt).rejects.toMatchObject({
         repositoryId: "repo-0",
         message:
-          'Failed to index repository repo-0 during repository reindex: index not implemented',
+          "Failed to index repository repo-0 during repository reindex: index not implemented",
       });
 
-      expect(removeRepositorySpy).toHaveBeenCalledWith("repo-0");
+      expect(repositoryIndexerService.indexRepository).toHaveBeenCalledWith(
+        createdRepository,
+      );
+      expect(repositoryDBService.removeRepository).toHaveBeenCalledWith(
+        "repo-0",
+      );
       expect(watcher.stop).toHaveBeenCalledWith("repo-0");
     });
   });
@@ -81,34 +90,42 @@ describe("RepositoryOrchestratorService", () => {
 
   describe("untrackRepository()", () => {
     it("stops the watcher and removes an existing repository", async () => {
+      const repositoryDBService = createMockRepoDBService();
+      const repositoryIndexerService = createMockRepositoryIndexerService();
       const watcher = makeWatcherMock();
       const service = new RepositoryOrchestratorService(
+        repositoryDBService,
+        repositoryIndexerService,
         watcher as unknown as Watcher,
       );
 
-      vi.spyOn(repositoryDBService, "getRepository").mockResolvedValue({
+      repositoryDBService.getRepository.mockResolvedValue({
         id: "repo-3",
         name: "CodeAtlas",
         path: process.cwd(),
         createdAt: new Date(),
       });
-      const removeRepositorySpy = vi
-        .spyOn(repositoryDBService, "removeRepository")
-        .mockResolvedValue(true);
+      repositoryDBService.removeRepository.mockResolvedValue(true);
 
       await service.untrackRepository("repo-3");
 
       expect(watcher.stop).toHaveBeenCalledWith("repo-3");
-      expect(removeRepositorySpy).toHaveBeenCalledWith("repo-3");
+      expect(repositoryDBService.removeRepository).toHaveBeenCalledWith(
+        "repo-3",
+      );
     });
 
     it("throws RepositoryNotFoundError when the repository does not exist", async () => {
+      const repositoryDBService = createMockRepoDBService();
+      const repositoryIndexerService = createMockRepositoryIndexerService();
       const watcher = makeWatcherMock();
       const service = new RepositoryOrchestratorService(
+        repositoryDBService,
+        repositoryIndexerService,
         watcher as unknown as Watcher,
       );
 
-      vi.spyOn(repositoryDBService, "getRepository").mockResolvedValue(null);
+      repositoryDBService.getRepository.mockResolvedValue(null);
 
       await expect(service.untrackRepository("missing")).rejects.toBeInstanceOf(
         RepositoryNotFoundError,
@@ -123,7 +140,13 @@ describe("RepositoryOrchestratorService", () => {
 
   describe("listRepositories()", () => {
     it("returns all repositories from the database", async () => {
-      const service = new RepositoryOrchestratorService(makeWatcherMock() as unknown as Watcher);
+      const repositoryDBService = createMockRepoDBService();
+      const repositoryIndexerService = createMockRepositoryIndexerService();
+      const service = new RepositoryOrchestratorService(
+        repositoryDBService,
+        repositoryIndexerService,
+        makeWatcherMock() as unknown as Watcher,
+      );
 
       const repositories = [
         {
@@ -134,9 +157,7 @@ describe("RepositoryOrchestratorService", () => {
         },
       ];
 
-      vi.spyOn(repositoryDBService, "listRepositories").mockResolvedValue(
-        repositories,
-      );
+      repositoryDBService.listRepositories.mockResolvedValue(repositories);
 
       await expect(service.listRepositories()).resolves.toEqual(repositories);
     });
@@ -148,7 +169,13 @@ describe("RepositoryOrchestratorService", () => {
 
   describe("getRepository()", () => {
     it("returns a repository when the id exists", async () => {
-      const service = new RepositoryOrchestratorService(makeWatcherMock() as unknown as Watcher);
+      const repositoryDBService = createMockRepoDBService();
+      const repositoryIndexerService = createMockRepositoryIndexerService();
+      const service = new RepositoryOrchestratorService(
+        repositoryDBService,
+        repositoryIndexerService,
+        makeWatcherMock() as unknown as Watcher,
+      );
       const repository = {
         id: "repo-5",
         name: "CodeAtlas",
@@ -156,9 +183,7 @@ describe("RepositoryOrchestratorService", () => {
         createdAt: new Date(),
       };
 
-      vi.spyOn(repositoryDBService, "getRepository").mockResolvedValue(
-        repository,
-      );
+      repositoryDBService.getRepository.mockResolvedValue(repository);
 
       await expect(service.getRepository("repo-5")).resolves.toEqual(
         repository,
@@ -166,9 +191,15 @@ describe("RepositoryOrchestratorService", () => {
     });
 
     it("returns null when the repository id does not exist", async () => {
-      const service = new RepositoryOrchestratorService(makeWatcherMock() as unknown as Watcher);
+      const repositoryDBService = createMockRepoDBService();
+      const repositoryIndexerService = createMockRepositoryIndexerService();
+      const service = new RepositoryOrchestratorService(
+        repositoryDBService,
+        repositoryIndexerService,
+        makeWatcherMock() as unknown as Watcher,
+      );
 
-      vi.spyOn(repositoryDBService, "getRepository").mockResolvedValue(null);
+      repositoryDBService.getRepository.mockResolvedValue(null);
 
       await expect(service.getRepository("missing")).resolves.toBeNull();
     });
