@@ -24,6 +24,23 @@ export class DuplicateRepositoryError extends Error {
 }
 
 export class RepositoryDBService extends BaseDBService {
+  async listRepositories(): Promise<Repository[]> {
+    return this.executeQuery("listRepositories", async () => {
+      return this.db.select().from(repositories);
+    });
+  }
+
+  async getRepository(id: string): Promise<Repository | null> {
+    return this.executeQuery("getRepository", async () => {
+      const [repository] = await this.db
+        .select()
+        .from(repositories)
+        .where(eq(repositories.id, id));
+
+      return repository ?? null;
+    });
+  }
+
   async createRepository(input: CreateRepositoryInput): Promise<Repository> {
     return this.executeQuery("createRepository", async () => {
       try {

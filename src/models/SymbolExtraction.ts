@@ -3,11 +3,10 @@ import type { SymbolType, Visibility } from "./Symbol";
 
 export interface ExtractedSymbol {
   symbol: string;
-  type: string;
+  type: SymbolType;
   visibility: Visibility;
   body: string;
 }
-
 
 /**
  * Capture lookup map where keys are capture names and values are the matched captured nodes.

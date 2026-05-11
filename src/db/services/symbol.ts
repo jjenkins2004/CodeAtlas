@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { client } from "../client.js";
 import { symbols } from "../schema.js";
 import type {
@@ -18,6 +18,33 @@ function mapSymbol(record: SymbolRecord): Symbol {
 }
 
 export class SymbolDBService extends BaseDBService {
+  async removeSymbolsByRepository(repositoryId: string): Promise<number> {
+    return this.executeQuery("removeSymbolsByRepository", async () => {
+      const deleted = await this.db
+        .delete(symbols)
+        .where(eq(symbols.repositoryId, repositoryId))
+        .returning({ id: symbols.id });
+
+      return deleted.length;
+    });
+  }
+
+  async removeSymbolsByRepositoryFile(
+    repositoryId: string,
+    file: string,
+  ): Promise<number> {
+    return this.executeQuery("removeSymbolsByRepositoryFile", async () => {
+      const deleted = await this.db
+        .delete(symbols)
+        .where(
+          and(eq(symbols.repositoryId, repositoryId), eq(symbols.file, file)),
+        )
+        .returning({ id: symbols.id });
+
+      return deleted.length;
+    });
+  }
+
   async createSymbol(input: CreateSymbolInput): Promise<Symbol> {
     return this.executeQuery("createSymbol", async () => {
       const [created] = await this.db.insert(symbols).values(input).returning();
