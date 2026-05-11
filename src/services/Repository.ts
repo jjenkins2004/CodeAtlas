@@ -1,13 +1,13 @@
 import fs from "fs/promises";
 import path from "path";
 import {
-    RepositoryPathNotFoundError,
-    RepositoryPathNotDirectoryError,
-    RepositoryIndexingError,
-    RepositoryNotFoundError,
-    ReindexResult,
-   CreateRepositoryInput,
-   Repository,
+  RepositoryPathNotFoundError,
+  RepositoryPathNotDirectoryError,
+  RepositoryIndexingError,
+  RepositoryNotFoundError,
+  ReindexResult,
+  CreateRepositoryInput,
+  Repository,
 } from "../models/Repository.js";
 import {
   DuplicateRepositoryError,
@@ -16,7 +16,6 @@ import {
 import { symbolDBService } from "../db/services/symbol.js";
 import { IgnoreFilter } from "./IgnoreFilter.js";
 import { Watcher } from "./Watcher.js";
-
 
 export class RepositoryOrchestratorService {
   private readonly watcher: Watcher;
@@ -92,7 +91,10 @@ export class RepositoryOrchestratorService {
     if (!repository) {
       throw new RepositoryNotFoundError(repositoryId);
     }
-    throw new RepositoryIndexingError(repositoryId, "Reindexing is currently disabled");
+    throw new RepositoryIndexingError(
+      repositoryId,
+      "Reindexing is currently disabled",
+    );
   }
 
   async listRepositories(): Promise<Repository[]> {
@@ -108,10 +110,8 @@ export class RepositoryOrchestratorService {
       repositoryId: repository.id,
       rootPath: repository.path,
       ignoreFilter: IgnoreFilter.createFilter(repository.path),
-      onCreation: (filePath) => {
-      },
-      onUpdate: (filePath) => {
-      },
+      onCreation: (filePath) => {},
+      onUpdate: (filePath) => {},
       onDeletion: (filePath) => {
         void this.removeSymbolsForDeletedFile(
           repository.id,
@@ -229,29 +229,6 @@ export class RepositoryOrchestratorService {
       await this.watcher.stop(repositoryId);
     } catch (error) {
       console.warn(`Failed to stop watcher for ${repositoryId}:`, error);
-    }
-  }
-
-  private async ensureDirectoryExists(directoryPath: string): Promise<void> {
-    let stats;
-
-    try {
-      stats = await fs.stat(directoryPath);
-    } catch (error) {
-      if (
-        error &&
-        typeof error === "object" &&
-        "code" in error &&
-        (error as NodeJS.ErrnoException).code === "ENOENT"
-      ) {
-        throw new RepositoryPathNotFoundError(directoryPath);
-      }
-
-      throw error;
-    }
-
-    if (!stats.isDirectory()) {
-      throw new RepositoryPathNotDirectoryError(directoryPath);
     }
   }
 }
