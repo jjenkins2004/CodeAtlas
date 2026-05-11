@@ -17,21 +17,41 @@ import {
   repositoryIndexerService as defaultRepositoryIndexerService,
   type RepositoryIndexerServicePort,
 } from "./RepositoryIndexer.js";
+import {
+  FileReindexService,
+  type FileReindexServicePort,
+} from "./FileReindex.js";
 import { Watcher } from "./Watcher.js";
 
-export class RepositoryOrchestratorService {
-  private readonly repositoryDBService: RepositoryDBServicePort;
-  private readonly repositoryIndexerService: RepositoryIndexerServicePort;
-  private readonly watcher: Watcher;
+export interface RepositoryOrchestratorServiceConfig {
+  repositoryDBService?: RepositoryDBServicePort;
+  repositoryIndexerService?: RepositoryIndexerServicePort;
+  fileReindexService?: FileReindexServicePort;
+  watcher?: Watcher;
+}
 
-  constructor(
-    repositoryDBService: RepositoryDBServicePort = defaultRepositoryDBService,
-    repositoryIndexerService: RepositoryIndexerServicePort = defaultRepositoryIndexerService,
-    watcher: Watcher = new Watcher(),
-  ) {
-    this.repositoryDBService = repositoryDBService;
-    this.repositoryIndexerService = repositoryIndexerService;
-    this.watcher = watcher;
+const defaultRepositoryOrchestratorServiceConfig: Required<RepositoryOrchestratorServiceConfig> =
+  {
+    repositoryDBService: defaultRepositoryDBService,
+    repositoryIndexerService: defaultRepositoryIndexerService,
+    fileReindexService: new FileReindexService(),
+    watcher: new Watcher(),
+  };
+
+export class RepositoryOrchestratorService {
+  private readonly config: Required<RepositoryOrchestratorServiceConfig>;
+
+  constructor(config: RepositoryOrchestratorServiceConfig = {}) {
+    this.config = {
+      ...defaultRepositoryOrchestratorServiceConfig,
+      ...config,
+    };
+
+    this.config.fileReindexService.registerOnFileShouldBeReindexed(
+      (filePath: string) => {
+        this.handleFileShouldBeReindexed(filePath);
+      },
+    );
   }
 
   async trackRepository(input: CreateRepositoryInput): Promise<Repository> {
@@ -45,10 +65,10 @@ export class RepositoryOrchestratorService {
     };
 
     const createdRepository =
-      await this.repositoryDBService.createRepository(repositoryInput);
+      await this.config.repositoryDBService.createRepository(repositoryInput);
 
     await this.runTrackStep(createdRepository.id, () =>
-      this.repositoryIndexerService.indexRepository(createdRepository),
+      this.config.repositoryIndexerService.indexRepository(createdRepository),
     );
 
     await this.runTrackStep(createdRepository.id, () =>
@@ -60,7 +80,7 @@ export class RepositoryOrchestratorService {
 
   async untrackRepository(repositoryId: string): Promise<void> {
     const repository =
-      await this.repositoryDBService.getRepository(repositoryId);
+      await this.config.repositoryDBService.getRepository(repositoryId);
 
     if (!repository) {
       throw new RepositoryNotFoundError(repositoryId);
@@ -69,30 +89,28 @@ export class RepositoryOrchestratorService {
     await this.safeStopWatcher(repositoryId);
 
     const removed =
-      await this.repositoryDBService.removeRepository(repositoryId);
+      await this.config.repositoryDBService.removeRepository(repositoryId);
 
     if (!removed) {
       throw new RepositoryNotFoundError(repositoryId);
     }
   }
 
-  async listRepositories(): Promise<Repository[]> {
-    return this.repositoryDBService.listRepositories();
-  }
-
-  async getRepository(repositoryId: string): Promise<Repository | null> {
-    return this.repositoryDBService.getRepository(repositoryId);
-  }
-
   private async startWatcher(repository: Repository): Promise<void> {
-    await this.watcher.start({
+    await this.config.watcher.start({
       repositoryId: repository.id,
       rootPath: repository.path,
       ignoreFilter: IgnoreFilter.createFilter(repository.path),
       onCreation: (filePath) => {},
-      onUpdate: (filePath) => {},
+      onUpdate: (filePath) => {
+        this.config.fileReindexService.fileWasUpdated(filePath);
+      },
       onDeletion: (filePath) => {},
     });
+  }
+
+  private handleFileShouldBeReindexed(filePath: string): void {
+    void filePath;
   }
 
   private async validateAndNormalizeRepositoryPath(
@@ -126,7 +144,7 @@ export class RepositoryOrchestratorService {
 
   private async safeStopWatcher(repositoryId: string): Promise<void> {
     try {
-      await this.watcher.stop(repositoryId);
+      await this.config.watcher.stop(repositoryId);
     } catch (error) {
       console.warn(`Failed to stop watcher for ${repositoryId}:`, error);
     }
@@ -137,7 +155,7 @@ export class RepositoryOrchestratorService {
 
     try {
       const removed =
-        await this.repositoryDBService.removeRepository(repositoryId);
+        await this.config.repositoryDBService.removeRepository(repositoryId);
 
       if (!removed) {
         console.warn(
@@ -181,6 +199,4 @@ export const RepositoryService = {
     repositoryService.trackRepository(input),
   untrack: (repositoryId: string, _shouldDelete = false) =>
     repositoryService.untrackRepository(repositoryId),
-  list: () => repositoryService.listRepositories(),
-  get: (repositoryId: string) => repositoryService.getRepository(repositoryId),
 };
