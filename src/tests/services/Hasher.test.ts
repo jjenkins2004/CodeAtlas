@@ -4,7 +4,7 @@ import {
   hashCodeBlock,
   hashFile,
   hashText,
-} from "../../services/Hasher.js";
+} from "../../services/util/Hasher.js";
 import { MockRepo } from "../fixtures/mockRepo.js";
 
 // ---------------------------------------------------------------------------

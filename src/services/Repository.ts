@@ -12,7 +12,7 @@ import {
   repositoryDBService as defaultRepositoryDBService,
   type RepositoryDBServicePort,
 } from "../db/services/repository.js";
-import { IgnoreFilter } from "./IgnoreFilter.js";
+import { IgnoreFilter } from "./util/IgnoreFilter.js";
 import {
   indexerService as defaultIndexerService,
   type IndexerServicePort,

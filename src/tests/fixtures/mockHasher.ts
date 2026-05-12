@@ -1,5 +1,5 @@
 import { vi } from "vitest";
-import type { HasherServicePort } from "../../services/Hasher.js";
+import type { HasherServicePort } from "../../services/util/Hasher.js";
 
 export type MockHasherServiceInstance = HasherServicePort & {
   hashText: ReturnType<typeof vi.fn>;

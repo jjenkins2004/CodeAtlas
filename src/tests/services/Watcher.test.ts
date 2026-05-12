@@ -121,7 +121,8 @@ describe("Watcher", () => {
 
     it("uses a provided ignoreFilter instead of creating one from the root", async () => {
       // Supply a filter that ignores everything — no events should fire
-      const { IgnoreFilter } = await import("../../services/IgnoreFilter.js");
+      const { IgnoreFilter } =
+        await import("../../services/util/IgnoreFilter.js");
       const blockAll = IgnoreFilter.createFilter(repo.rootPath);
       vi.spyOn(blockAll, "ignores").mockReturnValue(true);
 

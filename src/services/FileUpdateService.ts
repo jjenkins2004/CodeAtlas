@@ -3,10 +3,10 @@ import { fileDBService } from "../db/services/file.js";
 import type { FileDBServicePort } from "../db/services/file.js";
 import { indexerService } from "./IndexerService.js";
 import type { IndexerServicePort } from "./IndexerService.js";
-import { debounceService } from "./DebounceService.js";
-import type { DebounceServicePort } from "./DebounceService.js";
-import { hasherService } from "./Hasher.js";
-import type { HasherServicePort } from "./Hasher.js";
+import { debounceService } from "./util/DebounceService.js";
+import type { DebounceServicePort } from "./util/DebounceService.js";
+import { hasherService } from "./util/Hasher.js";
+import type { HasherServicePort } from "./util/Hasher.js";
 import {
   FileUpdateTranslatorService,
   type FileUpdateTranslatorServiceConstructor,

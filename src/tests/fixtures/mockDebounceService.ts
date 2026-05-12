@@ -1,5 +1,5 @@
 import { vi } from "vitest";
-import type { DebounceServicePort } from "../../services/DebounceService.js";
+import type { DebounceServicePort } from "../../services/util/DebounceService.js";
 
 export type MockDebounceService = DebounceServicePort & {
   debounce: ReturnType<typeof vi.fn>;

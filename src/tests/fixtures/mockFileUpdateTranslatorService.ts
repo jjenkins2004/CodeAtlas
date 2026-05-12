@@ -1,5 +1,5 @@
 import { vi } from "vitest";
-import type { DebounceServicePort } from "../../services/DebounceService.js";
+import type { DebounceServicePort } from "../../services/util/DebounceService.js";
 import type { FileUpdateTranslatorServicePort } from "../../services/FileUpdateTranslatorService.js";
 
 export type MockFileUpdateTranslatorServiceInstance =

@@ -10,7 +10,7 @@ import {
   type CreateRepositoryInput,
   type Repository,
 } from "../../models/Repository.js";
-import { IgnoreFilter } from "../../services/IgnoreFilter.js";
+import { IgnoreFilter } from "../../services/util/IgnoreFilter.js";
 import {
   RepositoryOrchestratorService,
   type RepositoryOrchestratorServiceConfig,

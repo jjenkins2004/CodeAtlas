@@ -8,26 +8,24 @@ import { hasherService } from "./util/Hasher.js";
 import type { HasherServicePort } from "./util/Hasher.js";
 import type { Symbol } from "../models/Symbol.js";
 
-export type FileUpdateTranslatorCallback = (symbol: Symbol) => void;
+export type SymbolUpdateGuardCallback = (symbol: Symbol) => void;
 
-export type FileUpdateTranslatorServiceConstructor = new (
+export type SymbolUpdateGuardServiceConstructor = new (
   repositoryId: string,
   debounceService?: DebounceServicePort,
   hasherService?: HasherServicePort,
   fileDBService?: FileDBServicePort,
   symbolDBService?: SymbolDBService,
-) => FileUpdateTranslatorServicePort;
+) => SymbolUpdateGuardServicePort;
 
 /** Translates raw file updates into symbol actions like reindexing or deletion. */
-export interface FileUpdateTranslatorServicePort {
-  registerOnSymbolShouldBeReindexed(
-    callback: FileUpdateTranslatorCallback,
-  ): void;
-  registerOnSymbolShouldBeDeleted(callback: FileUpdateTranslatorCallback): void;
+export interface SymbolUpdateGuardServicePort {
+  registerOnSymbolShouldBeReindexed(callback: SymbolUpdateGuardCallback): void;
+  registerOnSymbolShouldBeDeleted(callback: SymbolUpdateGuardCallback): void;
   fileWasUpdated(repositoryRelativePath: string): void;
 }
 
-export class FileUpdateTranslatorService implements FileUpdateTranslatorServicePort {
+export class SymbolUpdateGuardService implements SymbolUpdateGuardServicePort {
   constructor(
     private readonly repositoryId: string,
     private readonly debounceService: DebounceServicePort = debounceService,
@@ -38,18 +36,14 @@ export class FileUpdateTranslatorService implements FileUpdateTranslatorServiceP
     void repositoryId;
   }
 
-  private onSymbolShouldBeReindexed: FileUpdateTranslatorCallback | undefined;
-  private onSymbolShouldBeDeleted: FileUpdateTranslatorCallback | undefined;
+  private onSymbolShouldBeReindexed: SymbolUpdateGuardCallback | undefined;
+  private onSymbolShouldBeDeleted: SymbolUpdateGuardCallback | undefined;
 
-  registerOnSymbolShouldBeReindexed(
-    callback: FileUpdateTranslatorCallback,
-  ): void {
+  registerOnSymbolShouldBeReindexed(callback: SymbolUpdateGuardCallback): void {
     this.onSymbolShouldBeReindexed = callback;
   }
 
-  registerOnSymbolShouldBeDeleted(
-    callback: FileUpdateTranslatorCallback,
-  ): void {
+  registerOnSymbolShouldBeDeleted(callback: SymbolUpdateGuardCallback): void {
     this.onSymbolShouldBeDeleted = callback;
   }
 

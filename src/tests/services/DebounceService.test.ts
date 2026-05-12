@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DebounceService } from "../../services/DebounceService.js";
+import { DebounceService } from "../../services/util/DebounceService.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

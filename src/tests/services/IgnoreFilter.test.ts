@@ -1,6 +1,6 @@
 import fs from "fs";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { IgnoreFilter } from "../../services/IgnoreFilter.js";
+import { IgnoreFilter } from "../../services/util/IgnoreFilter.js";
 import { MockRepo } from "../fixtures/mockRepo.js";
 
 describe("IgnoreFilter", () => {

@@ -1,6 +1,6 @@
 import chokidar from "chokidar";
 import path from "path";
-import { IgnoreFilter } from "./IgnoreFilter.js";
+import { IgnoreFilter } from "./util/IgnoreFilter.js";
 
 type IgnoreFilterInstance = ReturnType<typeof IgnoreFilter.createFilter>;
 
