@@ -201,11 +201,11 @@ describe("SwiftAdapter", () => {
       const source = [
         "public class Session {",
         "  public init() {",
-        "    print('init')",
+        '    print("init")',
         "  }",
         "",
         "  deinit {",
-        "    print('deinit')",
+        '    print("deinit")',
         "  }",
         "}",
         "",
@@ -220,7 +220,7 @@ describe("SwiftAdapter", () => {
       expect(deinitializer.visibility).toBe("internal");
       expect(initializer.body).toContain("public init() {");
       expect(deinitializer.body).toContain("deinit {");
-      expect(deinitializer.body).toContain("print('deinit')");
+      expect(deinitializer.body).toContain('print("deinit")');
     });
 
     it("extracts visibility correctly from complex modifier stacks", () => {
@@ -341,6 +341,51 @@ describe("SwiftAdapter", () => {
 
       expect(findSymbol(symbols, "String.Helper", "class")).toBeDefined();
       expect(findSymbol(symbols, "String.Helper.run", "method")).toBeDefined();
+    });
+
+    it("extracts parseable symbols even when nearby declarations have syntax errors", () => {
+      const source = [
+        "public class Working {",
+        "  func ok() {}",
+        "",
+        "  func broken()",
+        "  var invalid: Int =",
+        "",
+        "  func alsoBroken(_ value: Int {",
+        "    value",
+        "  }",
+        "}",
+        "",
+        "public class Broken {",
+        "  func ignored() {",
+        "}",
+        "",
+        "public func topLevel() {}",
+        "",
+      ].join("\n");
+
+      const symbols = parseAndExtract(source);
+
+      expect(symbols).toEqual([
+        {
+          symbol: "ok",
+          type: "function",
+          visibility: "internal",
+          body: "func ok() {}",
+        },
+        {
+          symbol: "ignored",
+          type: "function",
+          visibility: "internal",
+          body: "func ignored() {\n}",
+        },
+        {
+          symbol: "topLevel",
+          type: "function",
+          visibility: "public",
+          body: "public func topLevel() {}",
+        },
+      ]);
     });
   });
 });

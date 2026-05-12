@@ -326,5 +326,44 @@ describe("PythonAdapter", () => {
       expect(runMethod).toBeDefined();
       expect(standaloneFunc).toBeDefined();
     });
+
+    it("extracts parseable symbols even when nearby declarations have syntax errors", () => {
+      const source = [
+        "def top_level():",
+        "    return 'top'",
+        "",
+        "class Working:",
+        "    def ok(self):",
+        "        return 'ok'",
+        "",
+        "    def broken(self)",
+        "        return 'broken'",
+        "",
+        "    def also_broken(self, value",
+        "        return value",
+        "",
+        "class AnotherBroken:",
+        "    def ignored(self):",
+        "        return 'ignored'",
+        "",
+      ].join("\n");
+
+      const symbols = parseAndExtract(source);
+
+      expect(symbols).toEqual([
+        {
+          body: "def top_level():\n    return 'top'",
+          symbol: "top_level",
+          type: "function",
+          visibility: "public",
+        },
+        {
+          symbol: "Working.ok",
+          type: "method",
+          visibility: "public",
+          body: "def ok(self):\n        return 'ok'",
+        },
+      ]);
+    });
   });
 });

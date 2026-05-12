@@ -5,6 +5,7 @@ import type {
   ExtractedSymbol,
 } from "../../models/SymbolExtraction.js";
 import { extractNodeText, getRequiredCapture } from "./utils.js";
+import { SymbolType } from "../../models/Symbol.js";
 
 function buildCaptureMap(captures: Parser.QueryCapture[]): CaptureMap {
   // Tree-sitter returns captures as a flat array like:
@@ -49,6 +50,27 @@ function buildQualifiedSymbolName(
   return `${prefixes.reverse().join(".")}.${symbolName}`;
 }
 
+// Avoid indexing half-baked symbols.
+function isNodeIncomplete(node: Parser.SyntaxNode, _type: SymbolType): boolean {
+  function hasErrorInSubtree(node: Parser.SyntaxNode): boolean {
+    if (node.hasError) {
+      return true;
+    }
+
+    for (let index = 0; index < node.childCount; index += 1) {
+      const child = node.child(index);
+
+      if (child && hasErrorInSubtree(child)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  return hasErrorInSubtree(node);
+}
+
 export function extractSymbolsFromSource(
   source: string,
   adapter: BaseTreeSitterLanguageAdapter,
@@ -80,6 +102,10 @@ export function extractSymbolsFromSource(
     const symbolType = adapter.getType(captures);
 
     if (!symbolType) {
+      continue;
+    }
+
+    if (isNodeIncomplete(definitionNode, symbolType)) {
       continue;
     }
 
