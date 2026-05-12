@@ -8,10 +8,10 @@ import type { DebounceServicePort } from "./DebounceService.js";
 import { hasherService } from "./Hasher.js";
 import type { HasherServicePort } from "./Hasher.js";
 import {
-  SymbolUpdateGuardService,
-  type SymbolUpdateGuardServiceConstructor,
-  type SymbolUpdateGuardServicePort,
-} from "./SymbolUpdateGuardService.js";
+  FileUpdateTranslatorService,
+  type FileUpdateTranslatorServiceConstructor,
+  type FileUpdateTranslatorServicePort,
+} from "./FileUpdateTranslatorService.js";
 import type { Symbol } from "../models/Symbol.js";
 
 export type FileUpdateOperation = "created" | "updated" | "deleted";
@@ -32,7 +32,7 @@ export interface FileUpdateServiceConfig {
   fileDBService?: FileDBServicePort;
   hasherService?: HasherServicePort;
   indexService?: IndexerServicePort;
-  symbolUpdateGuardServiceType?: SymbolUpdateGuardServiceConstructor;
+  fileUpdateTranslatorServiceType?: FileUpdateTranslatorServiceConstructor;
 }
 
 const defaultFileUpdateServiceConfig: Required<FileUpdateServiceConfig> = {
@@ -40,7 +40,7 @@ const defaultFileUpdateServiceConfig: Required<FileUpdateServiceConfig> = {
   fileDBService,
   hasherService,
   indexService: indexerService,
-  symbolUpdateGuardServiceType: SymbolUpdateGuardService,
+  fileUpdateTranslatorServiceType: FileUpdateTranslatorService,
 };
 
 export class FileUpdateService implements FileUpdateServicePort {
@@ -48,9 +48,9 @@ export class FileUpdateService implements FileUpdateServicePort {
 
   private readonly debounceTimeMs = 5000;
 
-  private readonly symbolUpdateGuardServices = new Map<
+  private readonly fileUpdateTranslatorServices = new Map<
     string,
-    SymbolUpdateGuardServicePort
+    FileUpdateTranslatorServicePort
   >();
 
   constructor(config: FileUpdateServiceConfig = {}) {
@@ -82,7 +82,7 @@ export class FileUpdateService implements FileUpdateServicePort {
   }
 
   removeRepository(repositoryId: string): void {
-    this.symbolUpdateGuardServices.delete(repositoryId);
+    this.fileUpdateTranslatorServices.delete(repositoryId);
   }
 
   private async processFileUpdate(
@@ -106,9 +106,9 @@ export class FileUpdateService implements FileUpdateServicePort {
           hash: fileHash,
         });
 
-        this.getOrCreateSymbolUpdateGuardService(repositoryId).fileWasUpdated(
-          repositoryRelativePath,
-        );
+        this.getOrCreateFileUpdateTranslatorService(
+          repositoryId,
+        ).fileWasUpdated(repositoryRelativePath);
         return;
       }
       case "updated": {
@@ -128,9 +128,9 @@ export class FileUpdateService implements FileUpdateServicePort {
           hash: fileHash,
         });
 
-        this.getOrCreateSymbolUpdateGuardService(repositoryId).fileWasUpdated(
-          repositoryRelativePath,
-        );
+        this.getOrCreateFileUpdateTranslatorService(
+          repositoryId,
+        ).fileWasUpdated(repositoryRelativePath);
         return;
       }
       case "deleted": {
@@ -149,35 +149,38 @@ export class FileUpdateService implements FileUpdateServicePort {
     }
   }
 
-  private getOrCreateSymbolUpdateGuardService(
+  private getOrCreateFileUpdateTranslatorService(
     repositoryId: string,
-  ): SymbolUpdateGuardServicePort {
-    const existingSymbolUpdateGuardService =
-      this.symbolUpdateGuardServices.get(repositoryId);
+  ): FileUpdateTranslatorServicePort {
+    const existingFileUpdateTranslatorService =
+      this.fileUpdateTranslatorServices.get(repositoryId);
 
-    if (existingSymbolUpdateGuardService) {
-      return existingSymbolUpdateGuardService;
+    if (existingFileUpdateTranslatorService) {
+      return existingFileUpdateTranslatorService;
     }
 
-    const symbolUpdateGuardService =
-      new this.config.symbolUpdateGuardServiceType(
+    const fileUpdateTranslatorService =
+      new this.config.fileUpdateTranslatorServiceType(
         repositoryId,
         this.config.debounceService,
       );
 
-    symbolUpdateGuardService.registerOnSymbolShouldBeReindexed(
+    fileUpdateTranslatorService.registerOnSymbolShouldBeReindexed(
       (symbol: Symbol) => {
         void this.config.indexService.indexSymbol(symbol);
       },
     );
 
-    symbolUpdateGuardService.registerOnSymbolShouldBeDeleted(() => {
+    fileUpdateTranslatorService.registerOnSymbolShouldBeDeleted(() => {
       return;
     });
 
-    this.symbolUpdateGuardServices.set(repositoryId, symbolUpdateGuardService);
+    this.fileUpdateTranslatorServices.set(
+      repositoryId,
+      fileUpdateTranslatorService,
+    );
 
-    return symbolUpdateGuardService;
+    return fileUpdateTranslatorService;
   }
 
   private toRepositoryRelativePath(

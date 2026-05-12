@@ -8,17 +8,17 @@ import { createMockFileDBService } from "../fixtures/mockFileDBService.js";
 import { createMockHasherService } from "../fixtures/mockHasher.js";
 import { createMockRepositoryIndexerService } from "../fixtures/mockRepositoryIndexerService.js";
 import {
-  createMockSymbolUpdateGuardServiceType,
-  type MockSymbolUpdateGuardServiceType,
-} from "../fixtures/mockSymbolUpdateGuardService.js";
+  createMockFileUpdateTranslatorServiceType,
+  type MockFileUpdateTranslatorServiceType,
+} from "../fixtures/mockFileUpdateTranslatorService.js";
 
 type ServiceDeps = {
   debounceService: ReturnType<typeof createMockDebounceService>;
   fileDBService: ReturnType<typeof createMockFileDBService>;
   hasherService: ReturnType<typeof createMockHasherService>;
   indexService: ReturnType<typeof createMockRepositoryIndexerService>;
-  symbolUpdateGuardServiceType: MockSymbolUpdateGuardServiceType & {
-    instances: InstanceType<MockSymbolUpdateGuardServiceType>[];
+  fileUpdateTranslatorServiceType: MockFileUpdateTranslatorServiceType & {
+    instances: InstanceType<MockFileUpdateTranslatorServiceType>[];
   };
   service: FileUpdateService;
 };
@@ -28,13 +28,14 @@ function makeServiceDeps(): ServiceDeps {
   const fileDBService = createMockFileDBService();
   const hasherService = createMockHasherService();
   const indexService = createMockRepositoryIndexerService();
-  const symbolUpdateGuardServiceType = createMockSymbolUpdateGuardServiceType();
+  const fileUpdateTranslatorServiceType =
+    createMockFileUpdateTranslatorServiceType();
   const service = new FileUpdateService({
     debounceService,
     fileDBService,
     hasherService,
     indexService,
-    symbolUpdateGuardServiceType,
+    fileUpdateTranslatorServiceType,
   });
 
   return {
@@ -42,7 +43,7 @@ function makeServiceDeps(): ServiceDeps {
     fileDBService,
     hasherService,
     indexService,
-    symbolUpdateGuardServiceType,
+    fileUpdateTranslatorServiceType,
     service,
   };
 }
@@ -79,7 +80,7 @@ describe("FileUpdateService", () => {
       fileDBService,
       hasherService,
       indexService,
-      symbolUpdateGuardServiceType,
+      fileUpdateTranslatorServiceType,
       service,
     } = makeServiceDeps();
 
@@ -114,24 +115,24 @@ describe("FileUpdateService", () => {
       path: repositoryRelativePath,
       hash: "file-hash-created",
     });
-    expect(symbolUpdateGuardServiceType.instances).toHaveLength(1);
-    expect(symbolUpdateGuardServiceType.instances[0]?.repositoryId).toBe(
+    expect(fileUpdateTranslatorServiceType.instances).toHaveLength(1);
+    expect(fileUpdateTranslatorServiceType.instances[0]?.repositoryId).toBe(
       "repo-1",
     );
     expect(
-      symbolUpdateGuardServiceType.instances[0]
+      fileUpdateTranslatorServiceType.instances[0]
         ?.registerOnSymbolShouldBeReindexed,
     ).toHaveBeenCalledWith(expect.any(Function));
     expect(
-      symbolUpdateGuardServiceType.instances[0]
+      fileUpdateTranslatorServiceType.instances[0]
         ?.registerOnSymbolShouldBeDeleted,
     ).toHaveBeenCalledWith(expect.any(Function));
     expect(
-      symbolUpdateGuardServiceType.instances[0]?.fileWasUpdated,
+      fileUpdateTranslatorServiceType.instances[0]?.fileWasUpdated,
     ).toHaveBeenCalledWith(repositoryRelativePath);
 
-    const callbackForSymbolReindex = symbolUpdateGuardServiceType.instances[0]
-      ?.registerOnSymbolShouldBeReindexed.mock.calls[0]?.[0] as
+    const callbackForSymbolReindex = fileUpdateTranslatorServiceType
+      .instances[0]?.registerOnSymbolShouldBeReindexed.mock.calls[0]?.[0] as
       | ((symbol: { id: string }) => void)
       | undefined;
 
@@ -221,7 +222,7 @@ describe("FileUpdateService", () => {
       debounceService,
       fileDBService,
       hasherService,
-      symbolUpdateGuardServiceType,
+      fileUpdateTranslatorServiceType,
       service,
     } = makeServiceDeps();
 
@@ -243,7 +244,7 @@ describe("FileUpdateService", () => {
       | undefined;
 
     await firstCallback?.();
-    expect(symbolUpdateGuardServiceType.instances).toHaveLength(1);
+    expect(fileUpdateTranslatorServiceType.instances).toHaveLength(1);
 
     service.removeRepository("repo-1");
 
@@ -255,6 +256,6 @@ describe("FileUpdateService", () => {
 
     await secondCallback?.();
 
-    expect(symbolUpdateGuardServiceType.instances).toHaveLength(2);
+    expect(fileUpdateTranslatorServiceType.instances).toHaveLength(2);
   });
 });

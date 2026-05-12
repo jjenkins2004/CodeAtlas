@@ -1,9 +1,9 @@
 import { vi } from "vitest";
 import type { DebounceServicePort } from "../../services/DebounceService.js";
-import type { SymbolUpdateGuardServicePort } from "../../services/SymbolUpdateGuardService.js";
+import type { FileUpdateTranslatorServicePort } from "../../services/FileUpdateTranslatorService.js";
 
-export type MockSymbolUpdateGuardServiceInstance =
-  SymbolUpdateGuardServicePort & {
+export type MockFileUpdateTranslatorServiceInstance =
+  FileUpdateTranslatorServicePort & {
     repositoryId: string;
     debounceService?: DebounceServicePort;
     registerOnSymbolShouldBeReindexed: ReturnType<typeof vi.fn>;
@@ -11,17 +11,17 @@ export type MockSymbolUpdateGuardServiceInstance =
     fileWasUpdated: ReturnType<typeof vi.fn>;
   };
 
-export type MockSymbolUpdateGuardServiceType = new (
+export type MockFileUpdateTranslatorServiceType = new (
   repositoryId: string,
   debounceService?: DebounceServicePort,
-) => MockSymbolUpdateGuardServiceInstance;
+) => MockFileUpdateTranslatorServiceInstance;
 
-export function createMockSymbolUpdateGuardServiceType(): MockSymbolUpdateGuardServiceType & {
-  instances: MockSymbolUpdateGuardServiceInstance[];
+export function createMockFileUpdateTranslatorServiceType(): MockFileUpdateTranslatorServiceType & {
+  instances: MockFileUpdateTranslatorServiceInstance[];
 } {
-  const instances: MockSymbolUpdateGuardServiceInstance[] = [];
+  const instances: MockFileUpdateTranslatorServiceInstance[] = [];
 
-  class MockSymbolUpdateGuardService implements MockSymbolUpdateGuardServiceInstance {
+  class MockFileUpdateTranslatorService implements MockFileUpdateTranslatorServiceInstance {
     registerOnSymbolShouldBeReindexed = vi.fn();
     registerOnSymbolShouldBeDeleted = vi.fn();
     fileWasUpdated = vi.fn();
@@ -34,5 +34,5 @@ export function createMockSymbolUpdateGuardServiceType(): MockSymbolUpdateGuardS
     }
   }
 
-  return Object.assign(MockSymbolUpdateGuardService, { instances });
+  return Object.assign(MockFileUpdateTranslatorService, { instances });
 }
