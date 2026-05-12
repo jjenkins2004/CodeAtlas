@@ -1,5 +1,6 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 import { Watcher, WatcherConfig } from "../../services/Watcher.js";
+import { createMockRepositoryPathService } from "../fixtures/mockRepositoryPathService.js";
 import { MockRepo } from "../fixtures/mockRepo.js";
 
 // ---------------------------------------------------------------------------
@@ -30,12 +31,15 @@ function makeConfig(
   repo: MockRepo,
   overrides: Partial<WatcherConfig> = {},
 ): WatcherConfig {
+  const repositoryPathService = createMockRepositoryPathService();
+
   return {
     repositoryId: "test-repo",
     rootPath: repo.rootPath,
     onCreation: vi.fn(),
     onUpdate: vi.fn(),
     onDeletion: vi.fn(),
+    repositoryPathService,
     ...overrides,
   };
 }

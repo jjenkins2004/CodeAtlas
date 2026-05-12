@@ -6,6 +6,7 @@ import { FileUpdateService } from "../../services/FileUpdateService.js";
 import { createMockDebounceService } from "../fixtures/mockDebounceService.js";
 import { createMockFileDBService } from "../fixtures/mockFileDBService.js";
 import { createMockHasherService } from "../fixtures/mockHasher.js";
+import { createMockRepositoryPathService } from "../fixtures/mockRepositoryPathService.js";
 import { createMockRepositoryIndexerService } from "../fixtures/mockRepositoryIndexerService.js";
 import {
   createMockFileUpdateTranslatorServiceType,
@@ -16,6 +17,7 @@ type ServiceDeps = {
   debounceService: ReturnType<typeof createMockDebounceService>;
   fileDBService: ReturnType<typeof createMockFileDBService>;
   hasherService: ReturnType<typeof createMockHasherService>;
+  repositoryPathService: ReturnType<typeof createMockRepositoryPathService>;
   indexService: ReturnType<typeof createMockRepositoryIndexerService>;
   fileUpdateTranslatorServiceType: MockFileUpdateTranslatorServiceType & {
     instances: InstanceType<MockFileUpdateTranslatorServiceType>[];
@@ -27,6 +29,7 @@ function makeServiceDeps(): ServiceDeps {
   const debounceService = createMockDebounceService();
   const fileDBService = createMockFileDBService();
   const hasherService = createMockHasherService();
+  const repositoryPathService = createMockRepositoryPathService();
   const indexService = createMockRepositoryIndexerService();
   const fileUpdateTranslatorServiceType =
     createMockFileUpdateTranslatorServiceType();
@@ -34,6 +37,7 @@ function makeServiceDeps(): ServiceDeps {
     debounceService,
     fileDBService,
     hasherService,
+    repositoryPathService,
     indexService,
     fileUpdateTranslatorServiceType,
   });
@@ -42,6 +46,7 @@ function makeServiceDeps(): ServiceDeps {
     debounceService,
     fileDBService,
     hasherService,
+    repositoryPathService,
     indexService,
     fileUpdateTranslatorServiceType,
     service,
@@ -79,6 +84,7 @@ describe("FileUpdateService", () => {
       debounceService,
       fileDBService,
       hasherService,
+      repositoryPathService,
       indexService,
       fileUpdateTranslatorServiceType,
       service,
@@ -108,6 +114,10 @@ describe("FileUpdateService", () => {
       filePath,
       5000,
       expect.any(Function),
+    );
+    expect(repositoryPathService.toRepositoryRelativePath).toHaveBeenCalledWith(
+      tempDirectoryPath,
+      filePath,
     );
     expect(hasherService.hashFile).toHaveBeenCalledWith(filePath);
     expect(fileDBService.createFile).toHaveBeenCalledWith({
@@ -152,8 +162,13 @@ describe("FileUpdateService", () => {
       createdAt: new Date("2024-01-01T00:00:00.000Z"),
       updatedAt: new Date("2024-01-01T00:00:00.000Z"),
     };
-    const { debounceService, fileDBService, hasherService, service } =
-      makeServiceDeps();
+    const {
+      debounceService,
+      fileDBService,
+      hasherService,
+      repositoryPathService,
+      service,
+    } = makeServiceDeps();
 
     tempPaths.push(tempDirectoryPath);
     fileDBService.getFileByRepositoryAndPath.mockResolvedValue(existingFile);
@@ -171,6 +186,10 @@ describe("FileUpdateService", () => {
 
     await callback?.();
 
+    expect(repositoryPathService.toRepositoryRelativePath).toHaveBeenCalledWith(
+      tempDirectoryPath,
+      filePath,
+    );
     expect(fileDBService.getFileByRepositoryAndPath).toHaveBeenCalledWith(
       "repo-1",
       repositoryRelativePath,
@@ -193,7 +212,8 @@ describe("FileUpdateService", () => {
       createdAt: new Date("2024-01-01T00:00:00.000Z"),
       updatedAt: new Date("2024-01-01T00:00:00.000Z"),
     };
-    const { debounceService, fileDBService, service } = makeServiceDeps();
+    const { debounceService, fileDBService, repositoryPathService, service } =
+      makeServiceDeps();
 
     tempPaths.push(tempDirectoryPath);
     fileDBService.getFileByRepositoryAndPath.mockResolvedValue(existingFile);
@@ -207,6 +227,10 @@ describe("FileUpdateService", () => {
 
     await callback?.();
 
+    expect(repositoryPathService.toRepositoryRelativePath).toHaveBeenCalledWith(
+      tempDirectoryPath,
+      filePath,
+    );
     expect(fileDBService.getFileByRepositoryAndPath).toHaveBeenCalledWith(
       "repo-1",
       repositoryRelativePath,
@@ -222,6 +246,7 @@ describe("FileUpdateService", () => {
       debounceService,
       fileDBService,
       hasherService,
+      repositoryPathService,
       fileUpdateTranslatorServiceType,
       service,
     } = makeServiceDeps();
@@ -245,6 +270,10 @@ describe("FileUpdateService", () => {
 
     await firstCallback?.();
     expect(fileUpdateTranslatorServiceType.instances).toHaveLength(1);
+    expect(repositoryPathService.toRepositoryRelativePath).toHaveBeenCalledWith(
+      tempDirectoryPath,
+      filePath,
+    );
 
     service.removeRepository("repo-1");
 

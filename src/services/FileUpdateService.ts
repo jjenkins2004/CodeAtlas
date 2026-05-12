@@ -1,4 +1,3 @@
-import path from "path";
 import { fileDBService } from "../db/services/file.js";
 import type { FileDBServicePort } from "../db/services/file.js";
 import { indexerService } from "./IndexerService.js";
@@ -7,6 +6,10 @@ import { debounceService } from "./util/DebounceService.js";
 import type { DebounceServicePort } from "./util/DebounceService.js";
 import { hasherService } from "./util/Hasher.js";
 import type { HasherServicePort } from "./util/Hasher.js";
+import {
+  repositoryPathService,
+  type RepositoryPathServicePort,
+} from "./util/RepositoryPathService.js";
 import {
   FileUpdateTranslatorService,
   type FileUpdateTranslatorServiceConstructor,
@@ -33,6 +36,7 @@ export interface FileUpdateServiceConfig {
   hasherService?: HasherServicePort;
   indexService?: IndexerServicePort;
   fileUpdateTranslatorServiceType?: FileUpdateTranslatorServiceConstructor;
+  repositoryPathService?: RepositoryPathServicePort;
 }
 
 const defaultFileUpdateServiceConfig: Required<FileUpdateServiceConfig> = {
@@ -41,6 +45,7 @@ const defaultFileUpdateServiceConfig: Required<FileUpdateServiceConfig> = {
   hasherService,
   indexService: indexerService,
   fileUpdateTranslatorServiceType: FileUpdateTranslatorService,
+  repositoryPathService,
 };
 
 export class FileUpdateService implements FileUpdateServicePort {
@@ -187,7 +192,10 @@ export class FileUpdateService implements FileUpdateServicePort {
     repositoryRootPath: string,
     filePath: string,
   ): string {
-    return path.relative(repositoryRootPath, filePath);
+    return this.config.repositoryPathService.toRepositoryRelativePath(
+      repositoryRootPath,
+      filePath,
+    );
   }
 }
 

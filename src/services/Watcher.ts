@@ -1,6 +1,9 @@
 import chokidar from "chokidar";
-import path from "path";
 import { IgnoreFilter } from "./util/IgnoreFilter.js";
+import {
+  repositoryPathService,
+  type RepositoryPathServicePort,
+} from "./util/RepositoryPathService.js";
 
 type IgnoreFilterInstance = ReturnType<typeof IgnoreFilter.createFilter>;
 
@@ -16,6 +19,7 @@ export interface WatcherConfig {
   onUpdate: (filePath: string) => void;
   onDeletion: (filePath: string) => void;
   ignoreFilter?: IgnoreFilterInstance;
+  repositoryPathService?: RepositoryPathServicePort;
 }
 
 export interface WatcherPort {
@@ -42,6 +46,7 @@ export class Watcher implements WatcherPort {
       onUpdate,
       onDeletion,
       ignoreFilter: providedFilter,
+      repositoryPathService: providedRepositoryPathService,
     } = config;
 
     if (this.activeWatchers.has(repositoryId)) {
@@ -50,10 +55,14 @@ export class Watcher implements WatcherPort {
     }
 
     const ignoreFilter = providedFilter ?? IgnoreFilter.createFilter(rootPath);
+    const pathService = providedRepositoryPathService ?? repositoryPathService;
 
     // Filter function to determine if a file should be watched
     const shouldWatch = (filePath: string): boolean => {
-      const relativePath = path.relative(rootPath, filePath);
+      const relativePath = pathService.toRepositoryRelativePath(
+        rootPath,
+        filePath,
+      );
 
       // Chokidar may invoke `ignored` with the watch root itself.
       // The ignore package throws on empty paths, so keep the root watchable.
