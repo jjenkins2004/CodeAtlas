@@ -1,4 +1,9 @@
-export type { Repository, CreateRepositoryInput } from "./Repository.js";
+export type {
+  Repository,
+  CreateRepositoryInput,
+  UpdateRepositoryInput,
+} from "./Repository.js";
+export type { File, CreateFileInput, UpdateFileInput } from "./File.js";
 export type {
   ReindexResult,
   RepositoryNotFoundError,

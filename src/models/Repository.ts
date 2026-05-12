@@ -10,6 +10,11 @@ export interface CreateRepositoryInput {
   path: string;
 }
 
+export interface UpdateRepositoryInput {
+  name?: string;
+  path?: string;
+}
+
 export interface ReindexResult {
   filesIndexed: number;
   symbolsIndexed: number;

@@ -4,14 +4,10 @@ import { repositories } from "../schema.js";
 import { isUniqueConstraintError } from "../utils.js";
 import type {
   CreateRepositoryInput,
+  UpdateRepositoryInput,
   Repository,
 } from "../../models/Repository.js";
 import { BaseDBService } from "./base.js";
-
-export interface UpdateRepositoryInput {
-  name?: string;
-  path?: string;
-}
 
 export interface RepositoryDBServicePort {
   listRepositories(): Promise<Repository[]>;
