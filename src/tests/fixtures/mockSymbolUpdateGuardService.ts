@@ -7,6 +7,7 @@ export type MockSymbolUpdateGuardServiceInstance =
     repositoryId: string;
     debounceService?: DebounceServicePort;
     registerOnSymbolShouldBeReindexed: ReturnType<typeof vi.fn>;
+    registerOnSymbolShouldBeDeleted: ReturnType<typeof vi.fn>;
     fileWasUpdated: ReturnType<typeof vi.fn>;
   };
 
@@ -22,6 +23,7 @@ export function createMockSymbolUpdateGuardServiceType(): MockSymbolUpdateGuardS
 
   class MockSymbolUpdateGuardService implements MockSymbolUpdateGuardServiceInstance {
     registerOnSymbolShouldBeReindexed = vi.fn();
+    registerOnSymbolShouldBeDeleted = vi.fn();
     fileWasUpdated = vi.fn();
 
     constructor(

@@ -123,6 +123,10 @@ describe("FileUpdateService", () => {
         ?.registerOnSymbolShouldBeReindexed,
     ).toHaveBeenCalledWith(expect.any(Function));
     expect(
+      symbolUpdateGuardServiceType.instances[0]
+        ?.registerOnSymbolShouldBeDeleted,
+    ).toHaveBeenCalledWith(expect.any(Function));
+    expect(
       symbolUpdateGuardServiceType.instances[0]?.fileWasUpdated,
     ).toHaveBeenCalledWith(repositoryRelativePath);
 

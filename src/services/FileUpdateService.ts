@@ -171,6 +171,10 @@ export class FileUpdateService implements FileUpdateServicePort {
       },
     );
 
+    symbolUpdateGuardService.registerOnSymbolShouldBeDeleted(() => {
+      return;
+    });
+
     this.symbolUpdateGuardServices.set(repositoryId, symbolUpdateGuardService);
 
     return symbolUpdateGuardService;

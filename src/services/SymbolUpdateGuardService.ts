@@ -18,11 +18,10 @@ export type SymbolUpdateGuardServiceConstructor = new (
   symbolDBService?: SymbolDBService,
 ) => SymbolUpdateGuardServicePort;
 
+/** Translates raw file updates into symbol actions like reindexing or deletion. */
 export interface SymbolUpdateGuardServicePort {
   registerOnSymbolShouldBeReindexed(callback: SymbolUpdateGuardCallback): void;
-  /**
-   * Handles an updated file using a repository-relative path.
-   */
+  registerOnSymbolShouldBeDeleted(callback: SymbolUpdateGuardCallback): void;
   fileWasUpdated(repositoryRelativePath: string): void;
 }
 
@@ -38,9 +37,14 @@ export class SymbolUpdateGuardService implements SymbolUpdateGuardServicePort {
   }
 
   private onSymbolShouldBeReindexed: SymbolUpdateGuardCallback | undefined;
+  private onSymbolShouldBeDeleted: SymbolUpdateGuardCallback | undefined;
 
   registerOnSymbolShouldBeReindexed(callback: SymbolUpdateGuardCallback): void {
     this.onSymbolShouldBeReindexed = callback;
+  }
+
+  registerOnSymbolShouldBeDeleted(callback: SymbolUpdateGuardCallback): void {
+    this.onSymbolShouldBeDeleted = callback;
   }
 
   fileWasUpdated(repositoryRelativePath: string): void {
