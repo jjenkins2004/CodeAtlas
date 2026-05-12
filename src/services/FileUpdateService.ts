@@ -136,6 +136,7 @@ export class FileUpdateService implements FileUpdateServicePort {
         const fileHash = await this.config.hasherService.hashFile(fullPath);
 
         await this.config.fileDBService.updateFile(existingFile.id, {
+          path: repositoryRelativePath,
           hash: fileHash,
         });
 

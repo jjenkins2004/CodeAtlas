@@ -206,6 +206,7 @@ describe("FileUpdateService", () => {
     );
     expect(hasherService.hashFile).toHaveBeenCalledWith(fullPath);
     expect(fileDBService.updateFile).toHaveBeenCalledWith(existingFile.id, {
+      path: repositoryRelativePath,
       hash: "file-hash-updated",
     });
   });
