@@ -190,35 +190,35 @@ describe("RepositoryOrchestratorService", () => {
       await service.trackRepository(makeRepositoryInput(tempDirectoryPath));
 
       const watcherConfig = watcher.start.mock.calls[0]?.[0] as {
-        onCreation: (filePath: string) => void;
-        onUpdate: (filePath: string) => void;
-        onDeletion: (filePath: string) => void;
+        onCreation: (relativePath: string) => void;
+        onUpdate: (relativePath: string) => void;
+        onDeletion: (relativePath: string) => void;
       };
 
-      watcherConfig.onCreation("/tmp/created.ts");
-      watcherConfig.onUpdate("/tmp/updated.ts");
-      watcherConfig.onDeletion("/tmp/deleted.ts");
+      watcherConfig.onCreation("src/created.ts");
+      watcherConfig.onUpdate("src/updated.ts");
+      watcherConfig.onDeletion("src/deleted.ts");
 
       expect(fileUpdateService.handleFileUpdate).toHaveBeenCalledTimes(3);
       expect(fileUpdateService.handleFileUpdate).toHaveBeenNthCalledWith(
         1,
         "repo-11",
         tempDirectoryPath,
-        "/tmp/created.ts",
+        "src/created.ts",
         "created",
       );
       expect(fileUpdateService.handleFileUpdate).toHaveBeenNthCalledWith(
         2,
         "repo-11",
         tempDirectoryPath,
-        "/tmp/updated.ts",
+        "src/updated.ts",
         "updated",
       );
       expect(fileUpdateService.handleFileUpdate).toHaveBeenNthCalledWith(
         3,
         "repo-11",
         tempDirectoryPath,
-        "/tmp/deleted.ts",
+        "src/deleted.ts",
         "deleted",
       );
     });

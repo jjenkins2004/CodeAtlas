@@ -20,9 +20,9 @@ function waitForCall(
       () => reject(new Error("Timed out waiting for watcher event")),
       timeoutMs,
     );
-    fn.mockImplementationOnce((filePath: string) => {
+    fn.mockImplementationOnce((relativePath: string) => {
       clearTimeout(timer);
-      resolve(filePath);
+      resolve(relativePath);
     });
   });
 }
@@ -77,7 +77,7 @@ describe("Watcher", () => {
       );
       repo.writeFile("src/newFile.ts", "export {}");
 
-      expect(await received).toBe(repo.resolve("src/newFile.ts"));
+      expect(await received).toBe("src/newFile.ts");
     });
 
     it("fires onUpdate when an existing source file is changed", async () => {
@@ -87,7 +87,7 @@ describe("Watcher", () => {
       const received = waitForCall(config.onUpdate as ReturnType<typeof vi.fn>);
       repo.appendToFile("src/index.ts", "\nexport const updated = true;");
 
-      expect(await received).toBe(repo.resolve("src/index.ts"));
+      expect(await received).toBe("src/index.ts");
     });
 
     it("fires onDeletion when a source file is removed", async () => {
@@ -99,7 +99,7 @@ describe("Watcher", () => {
       );
       repo.deleteFile("src/index.ts");
 
-      expect(await received).toBe(repo.resolve("src/index.ts"));
+      expect(await received).toBe("src/index.ts");
     });
 
     it("does not fire onCreation for ignored paths (node_modules)", async () => {
@@ -149,7 +149,7 @@ describe("Watcher", () => {
         config.onCreation as ReturnType<typeof vi.fn>,
       );
       repo.writeFile("src/duplicate-watch-check.ts", "export {}");
-      expect(await received).toBe(repo.resolve("src/duplicate-watch-check.ts"));
+      expect(await received).toBe("src/duplicate-watch-check.ts");
 
       // If a second watcher had been created for the same repositoryId,
       // this callback would have been invoked twice for one file add.
@@ -189,7 +189,7 @@ describe("Watcher", () => {
         config.onCreation as ReturnType<typeof vi.fn>,
       );
       repo.writeFile("src/post-noop-stop.ts", "export {}");
-      expect(await received).toBe(repo.resolve("src/post-noop-stop.ts"));
+      expect(await received).toBe("src/post-noop-stop.ts");
     });
 
     it("allows the same repositoryId to be re-watched after stop", async () => {
@@ -204,7 +204,7 @@ describe("Watcher", () => {
         config2.onCreation as ReturnType<typeof vi.fn>,
       );
       repo.writeFile("src/rewatch.ts", "export {}");
-      expect(await received).toBe(repo.resolve("src/rewatch.ts"));
+      expect(await received).toBe("src/rewatch.ts");
     });
   });
 

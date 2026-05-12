@@ -23,7 +23,7 @@ export interface FileUpdateServicePort {
   handleFileUpdate(
     repositoryId: string,
     repositoryRootPath: string,
-    filePath: string,
+    repositoryRelativePath: string,
     operation: FileUpdateOperation,
   ): void;
 
@@ -48,6 +48,12 @@ const defaultFileUpdateServiceConfig: Required<FileUpdateServiceConfig> = {
   repositoryPathService,
 };
 
+/**
+ * Coordinates the full file-update pipeline: debounce a raw filesystem event,
+ * derive the repository-relative path, persist the file record and hash, and
+ * hand the update to the translator service so symbol reindexing or cleanup
+ * can flow through to the index service.
+ */
 export class FileUpdateService implements FileUpdateServicePort {
   private readonly config: Required<FileUpdateServiceConfig>;
 
@@ -68,18 +74,18 @@ export class FileUpdateService implements FileUpdateServicePort {
   handleFileUpdate(
     repositoryId: string,
     repositoryRootPath: string,
-    filePath: string,
+    repositoryRelativePath: string,
     operation: FileUpdateOperation,
   ): void {
     this.config.debounceService.debounce(
-      `${repositoryId}:${filePath}`,
-      filePath,
+      `${repositoryId}:${repositoryRelativePath}`,
+      repositoryRelativePath,
       this.debounceTimeMs,
       async () => {
         await this.processFileUpdate(
           repositoryId,
           repositoryRootPath,
-          filePath,
+          repositoryRelativePath,
           operation,
         );
       },
@@ -93,17 +99,17 @@ export class FileUpdateService implements FileUpdateServicePort {
   private async processFileUpdate(
     repositoryId: string,
     repositoryRootPath: string,
-    filePath: string,
+    repositoryRelativePath: string,
     operation: FileUpdateOperation,
   ): Promise<void> {
-    const repositoryRelativePath = this.toRepositoryRelativePath(
+    const fullPath = this.config.repositoryPathService.toRepositoryFullPath(
       repositoryRootPath,
-      filePath,
+      repositoryRelativePath,
     );
 
     switch (operation) {
       case "created": {
-        const fileHash = await this.config.hasherService.hashFile(filePath);
+        const fileHash = await this.config.hasherService.hashFile(fullPath);
 
         await this.config.fileDBService.createFile({
           repositoryId,
@@ -127,7 +133,7 @@ export class FileUpdateService implements FileUpdateServicePort {
           return;
         }
 
-        const fileHash = await this.config.hasherService.hashFile(filePath);
+        const fileHash = await this.config.hasherService.hashFile(fullPath);
 
         await this.config.fileDBService.updateFile(existingFile.id, {
           hash: fileHash,
@@ -186,16 +192,6 @@ export class FileUpdateService implements FileUpdateServicePort {
     );
 
     return fileUpdateTranslatorService;
-  }
-
-  private toRepositoryRelativePath(
-    repositoryRootPath: string,
-    filePath: string,
-  ): string {
-    return this.config.repositoryPathService.toRepositoryRelativePath(
-      repositoryRootPath,
-      filePath,
-    );
   }
 }
 

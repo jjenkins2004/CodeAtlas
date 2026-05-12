@@ -108,27 +108,27 @@ export class RepositoryOrchestratorService {
       repositoryId: repository.id,
       rootPath: repository.path,
       ignoreFilter: IgnoreFilter.createFilter(repository.path),
-      onCreation: (filePath) => {
+      onCreation: (relativePath) => {
         this.config.fileUpdateService.handleFileUpdate(
           repository.id,
           repository.path,
-          filePath,
+          relativePath,
           "created",
         );
       },
-      onUpdate: (filePath) => {
+      onUpdate: (relativePath) => {
         this.config.fileUpdateService.handleFileUpdate(
           repository.id,
           repository.path,
-          filePath,
+          relativePath,
           "updated",
         );
       },
-      onDeletion: (filePath) => {
+      onDeletion: (relativePath) => {
         this.config.fileUpdateService.handleFileUpdate(
           repository.id,
           repository.path,
-          filePath,
+          relativePath,
           "deleted",
         );
       },

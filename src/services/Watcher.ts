@@ -15,9 +15,9 @@ type IgnoreFilterInstance = ReturnType<typeof IgnoreFilter.createFilter>;
 export interface WatcherConfig {
   repositoryId: string;
   rootPath: string;
-  onCreation: (filePath: string) => void;
-  onUpdate: (filePath: string) => void;
-  onDeletion: (filePath: string) => void;
+  onCreation: (relativePath: string) => void;
+  onUpdate: (relativePath: string) => void;
+  onDeletion: (relativePath: string) => void;
   ignoreFilter?: IgnoreFilterInstance;
   repositoryPathService?: RepositoryPathServicePort;
 }
@@ -58,10 +58,10 @@ export class Watcher implements WatcherPort {
     const pathService = providedRepositoryPathService ?? repositoryPathService;
 
     // Filter function to determine if a file should be watched
-    const shouldWatch = (filePath: string): boolean => {
+    const shouldWatch = (fullPath: string): boolean => {
       const relativePath = pathService.toRepositoryRelativePath(
         rootPath,
-        filePath,
+        fullPath,
       );
 
       // Chokidar may invoke `ignored` with the watch root itself.
@@ -75,14 +75,20 @@ export class Watcher implements WatcherPort {
 
     try {
       const watcher = chokidar.watch(rootPath, {
-        ignored: (filePath: string) => !shouldWatch(filePath),
+        ignored: (fullPath: string) => !shouldWatch(fullPath),
         persistent: true,
         ignoreInitial: true,
       });
 
-      watcher.on("add", onCreation);
-      watcher.on("change", onUpdate);
-      watcher.on("unlink", onDeletion);
+      watcher.on("add", (fullPath: string) => {
+        onCreation(pathService.toRepositoryRelativePath(rootPath, fullPath));
+      });
+      watcher.on("change", (fullPath: string) => {
+        onUpdate(pathService.toRepositoryRelativePath(rootPath, fullPath));
+      });
+      watcher.on("unlink", (fullPath: string) => {
+        onDeletion(pathService.toRepositoryRelativePath(rootPath, fullPath));
+      });
 
       await new Promise<void>((resolve, reject) => {
         watcher.once("ready", () => resolve());

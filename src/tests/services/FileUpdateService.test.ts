@@ -79,7 +79,7 @@ describe("FileUpdateService", () => {
   it("creates a file after debounce and notifies the symbol guard", async () => {
     const tempDirectoryPath = await makeTempDirectory();
     const repositoryRelativePath = "src/example.ts";
-    const filePath = path.join(tempDirectoryPath, repositoryRelativePath);
+    const fullPath = path.join(tempDirectoryPath, repositoryRelativePath);
     const {
       debounceService,
       fileDBService,
@@ -101,7 +101,12 @@ describe("FileUpdateService", () => {
       updatedAt: new Date("2024-01-01T00:00:00.000Z"),
     });
 
-    service.handleFileUpdate("repo-1", tempDirectoryPath, filePath, "created");
+    service.handleFileUpdate(
+      "repo-1",
+      tempDirectoryPath,
+      repositoryRelativePath,
+      "created",
+    );
 
     const callback = debounceService.debounce.mock.calls[0]?.[3] as
       | (() => Promise<void>)
@@ -110,16 +115,16 @@ describe("FileUpdateService", () => {
     await callback?.();
 
     expect(debounceService.debounce).toHaveBeenCalledWith(
-      `repo-1:${filePath}`,
-      filePath,
+      `repo-1:${repositoryRelativePath}`,
+      repositoryRelativePath,
       5000,
       expect.any(Function),
     );
-    expect(repositoryPathService.toRepositoryRelativePath).toHaveBeenCalledWith(
+    expect(repositoryPathService.toRepositoryFullPath).toHaveBeenCalledWith(
       tempDirectoryPath,
-      filePath,
+      repositoryRelativePath,
     );
-    expect(hasherService.hashFile).toHaveBeenCalledWith(filePath);
+    expect(hasherService.hashFile).toHaveBeenCalledWith(fullPath);
     expect(fileDBService.createFile).toHaveBeenCalledWith({
       repositoryId: "repo-1",
       path: repositoryRelativePath,
@@ -153,7 +158,7 @@ describe("FileUpdateService", () => {
   it("updates a tracked file after debounce", async () => {
     const tempDirectoryPath = await makeTempDirectory();
     const repositoryRelativePath = "src/example.ts";
-    const filePath = path.join(tempDirectoryPath, repositoryRelativePath);
+    const fullPath = path.join(tempDirectoryPath, repositoryRelativePath);
     const existingFile = {
       id: "file-existing",
       repositoryId: "repo-1",
@@ -178,7 +183,12 @@ describe("FileUpdateService", () => {
     });
     hasherService.hashFile.mockResolvedValueOnce("file-hash-updated");
 
-    service.handleFileUpdate("repo-1", tempDirectoryPath, filePath, "updated");
+    service.handleFileUpdate(
+      "repo-1",
+      tempDirectoryPath,
+      repositoryRelativePath,
+      "updated",
+    );
 
     const callback = debounceService.debounce.mock.calls[0]?.[3] as
       | (() => Promise<void>)
@@ -186,15 +196,15 @@ describe("FileUpdateService", () => {
 
     await callback?.();
 
-    expect(repositoryPathService.toRepositoryRelativePath).toHaveBeenCalledWith(
+    expect(repositoryPathService.toRepositoryFullPath).toHaveBeenCalledWith(
       tempDirectoryPath,
-      filePath,
+      repositoryRelativePath,
     );
     expect(fileDBService.getFileByRepositoryAndPath).toHaveBeenCalledWith(
       "repo-1",
       repositoryRelativePath,
     );
-    expect(hasherService.hashFile).toHaveBeenCalledWith(filePath);
+    expect(hasherService.hashFile).toHaveBeenCalledWith(fullPath);
     expect(fileDBService.updateFile).toHaveBeenCalledWith(existingFile.id, {
       hash: "file-hash-updated",
     });
@@ -203,7 +213,7 @@ describe("FileUpdateService", () => {
   it("deletes a tracked file after debounce", async () => {
     const tempDirectoryPath = await makeTempDirectory();
     const repositoryRelativePath = "src/example.ts";
-    const filePath = path.join(tempDirectoryPath, repositoryRelativePath);
+    const fullPath = path.join(tempDirectoryPath, repositoryRelativePath);
     const existingFile = {
       id: "file-existing",
       repositoryId: "repo-1",
@@ -219,7 +229,12 @@ describe("FileUpdateService", () => {
     fileDBService.getFileByRepositoryAndPath.mockResolvedValue(existingFile);
     fileDBService.removeFile.mockResolvedValue(true);
 
-    service.handleFileUpdate("repo-1", tempDirectoryPath, filePath, "deleted");
+    service.handleFileUpdate(
+      "repo-1",
+      tempDirectoryPath,
+      repositoryRelativePath,
+      "deleted",
+    );
 
     const callback = debounceService.debounce.mock.calls[0]?.[3] as
       | (() => Promise<void>)
@@ -227,9 +242,9 @@ describe("FileUpdateService", () => {
 
     await callback?.();
 
-    expect(repositoryPathService.toRepositoryRelativePath).toHaveBeenCalledWith(
+    expect(repositoryPathService.toRepositoryFullPath).toHaveBeenCalledWith(
       tempDirectoryPath,
-      filePath,
+      repositoryRelativePath,
     );
     expect(fileDBService.getFileByRepositoryAndPath).toHaveBeenCalledWith(
       "repo-1",
@@ -241,7 +256,7 @@ describe("FileUpdateService", () => {
   it("clears cached symbol guards when a repository is removed", async () => {
     const tempDirectoryPath = await makeTempDirectory();
     const repositoryRelativePath = "src/example.ts";
-    const filePath = path.join(tempDirectoryPath, repositoryRelativePath);
+    const fullPath = path.join(tempDirectoryPath, repositoryRelativePath);
     const {
       debounceService,
       fileDBService,
@@ -262,7 +277,12 @@ describe("FileUpdateService", () => {
       updatedAt: new Date("2024-01-01T00:00:00.000Z"),
     });
 
-    service.handleFileUpdate("repo-1", tempDirectoryPath, filePath, "created");
+    service.handleFileUpdate(
+      "repo-1",
+      tempDirectoryPath,
+      repositoryRelativePath,
+      "created",
+    );
 
     const firstCallback = debounceService.debounce.mock.calls[0]?.[3] as
       | (() => Promise<void>)
@@ -270,14 +290,19 @@ describe("FileUpdateService", () => {
 
     await firstCallback?.();
     expect(fileUpdateTranslatorServiceType.instances).toHaveLength(1);
-    expect(repositoryPathService.toRepositoryRelativePath).toHaveBeenCalledWith(
+    expect(repositoryPathService.toRepositoryFullPath).toHaveBeenCalledWith(
       tempDirectoryPath,
-      filePath,
+      repositoryRelativePath,
     );
 
     service.removeRepository("repo-1");
 
-    service.handleFileUpdate("repo-1", tempDirectoryPath, filePath, "created");
+    service.handleFileUpdate(
+      "repo-1",
+      tempDirectoryPath,
+      repositoryRelativePath,
+      "created",
+    );
 
     const secondCallback = debounceService.debounce.mock.calls[1]?.[3] as
       | (() => Promise<void>)
