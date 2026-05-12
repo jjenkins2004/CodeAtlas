@@ -1,5 +1,15 @@
 CREATE TYPE "public"."symbol_type" AS ENUM('function', 'class', 'enum', 'protocol', 'method');--> statement-breakpoint
 CREATE TYPE "public"."visibility" AS ENUM('public', 'internal', 'private');--> statement-breakpoint
+CREATE TABLE "files" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"repository_id" uuid NOT NULL,
+	"path" text NOT NULL,
+	"hash" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "files_repository_path_unique" UNIQUE("repository_id","path")
+);
+--> statement-breakpoint
 CREATE TABLE "repositories" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"name" text NOT NULL,
@@ -12,7 +22,8 @@ CREATE TABLE "symbols" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"repository_id" uuid NOT NULL,
 	"symbol" text NOT NULL,
-	"file" text NOT NULL,
+	"file_id" uuid NOT NULL,
+	"hash" text NOT NULL,
 	"type" "symbol_type" NOT NULL,
 	"visibility" "visibility" DEFAULT 'public' NOT NULL,
 	"blurb" text,
@@ -21,8 +32,10 @@ CREATE TABLE "symbols" (
 	"embedding" vector(1536),
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "symbols_repository_symbol_file_unique" UNIQUE("repository_id","symbol","file")
+	CONSTRAINT "symbols_repository_symbol_file_unique" UNIQUE("repository_id","symbol","file_id")
 );
 --> statement-breakpoint
+ALTER TABLE "files" ADD CONSTRAINT "files_repository_id_repositories_id_fk" FOREIGN KEY ("repository_id") REFERENCES "public"."repositories"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "symbols" ADD CONSTRAINT "symbols_repository_id_repositories_id_fk" FOREIGN KEY ("repository_id") REFERENCES "public"."repositories"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "symbols" ADD CONSTRAINT "symbols_file_id_files_id_fk" FOREIGN KEY ("file_id") REFERENCES "public"."files"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "symbols_embedding_cosine_idx" ON "symbols" USING hnsw ("embedding" vector_cosine_ops);

@@ -31,13 +31,16 @@ export class SymbolDBService extends BaseDBService {
 
   async removeSymbolsByRepositoryFile(
     repositoryId: string,
-    file: string,
+    fileId: string,
   ): Promise<number> {
     return this.executeQuery("removeSymbolsByRepositoryFile", async () => {
       const deleted = await this.db
         .delete(symbols)
         .where(
-          and(eq(symbols.repositoryId, repositoryId), eq(symbols.file, file)),
+          and(
+            eq(symbols.repositoryId, repositoryId),
+            eq(symbols.fileId, fileId),
+          ),
         )
         .returning({ id: symbols.id });
 
@@ -70,7 +73,7 @@ export class SymbolDBService extends BaseDBService {
         .insert(symbols)
         .values(input)
         .onConflictDoUpdate({
-          target: [symbols.repositoryId, symbols.symbol, symbols.file],
+          target: [symbols.repositoryId, symbols.symbol, symbols.fileId],
           set: {
             type: input.type,
             visibility: input.visibility,
@@ -96,7 +99,7 @@ export class SymbolDBService extends BaseDBService {
         .update(symbols)
         .set({
           ...(input.symbol !== undefined ? { symbol: input.symbol } : {}),
-          ...(input.file !== undefined ? { file: input.file } : {}),
+          ...(input.fileId !== undefined ? { fileId: input.fileId } : {}),
           ...(input.type !== undefined ? { type: input.type } : {}),
           ...(input.visibility !== undefined
             ? { visibility: input.visibility }

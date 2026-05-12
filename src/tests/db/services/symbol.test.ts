@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 import { RepositoryDBService } from "../../../db/services/repository.js";
 import { SymbolDBService } from "../../../db/services/symbol.js";
-import { symbols } from "../../../db/schema.js";
+import { files, symbols } from "../../../db/schema.js";
 import { createTestDb, type TestDbContext } from "../../fixtures/testDb.js";
 
 // ---------------------------------------------------------------------------
@@ -15,6 +15,24 @@ function makeRepositoryService(ctx: TestDbContext): RepositoryDBService {
 
 function makeSymbolService(ctx: TestDbContext): SymbolDBService {
   return new SymbolDBService(ctx.db);
+}
+
+async function createFile(
+  ctx: TestDbContext,
+  repositoryId: string,
+  path: string,
+  hash = "file-hash-1",
+): Promise<string> {
+  const [created] = await ctx.db
+    .insert(files)
+    .values({
+      repositoryId,
+      path,
+      hash,
+    })
+    .returning({ id: files.id });
+
+  return created.id;
 }
 
 // ---------------------------------------------------------------------------
@@ -48,11 +66,17 @@ describe("SymbolDBService", () => {
         name: "CodeAtlas",
         path: "/tmp/codeatlas",
       });
+      const fileId = await createFile(
+        ctx,
+        repository.id,
+        "src/db/services/repository.ts",
+      );
 
       const created = await service.createSymbol({
         repositoryId: repository.id,
         symbol: "RepositoryDBService",
-        file: "src/db/services/repository.ts",
+        fileId,
+        hash: "symbol-hash-1",
         type: "class",
         visibility: "public",
         blurb: "Handles repository database operations.",
@@ -62,12 +86,13 @@ describe("SymbolDBService", () => {
 
       expect(created.id).toBeDefined();
       expect(created.repositoryId).toBe(repository.id);
-      expect(created.file).toBe("src/db/services/repository.ts");
+      expect(created.fileId).toBe(fileId);
+      expect(created.hash).toBe("symbol-hash-1");
       expect(created.tags).toEqual(["repository", "database"]);
 
       const rows = await ctx.db.select().from(symbols);
       expect(rows).toHaveLength(1);
-      expect(rows[0]?.file).toBe("src/db/services/repository.ts");
+      expect(rows[0]?.fileId).toBe(fileId);
     });
   });
 
@@ -81,10 +106,16 @@ describe("SymbolDBService", () => {
         name: "CodeAtlas",
         path: "/tmp/codeatlas",
       });
+      const fileId = await createFile(
+        ctx,
+        repository.id,
+        "src/db/services/repository.ts",
+      );
       const created = await service.createSymbol({
         repositoryId: repository.id,
         symbol: "RepositoryDBService",
-        file: "src/db/services/repository.ts",
+        fileId,
+        hash: "symbol-hash-2",
         type: "class",
         visibility: "public",
       });
@@ -113,11 +144,17 @@ describe("SymbolDBService", () => {
         name: "CodeAtlas",
         path: "/tmp/codeatlas",
       });
+      const fileId = await createFile(
+        ctx,
+        repository.id,
+        "src/db/services/repository.ts",
+      );
 
       const created = await service.upsertSymbol({
         repositoryId: repository.id,
         symbol: "RepositoryDBService",
-        file: "src/db/services/repository.ts",
+        fileId,
+        hash: "symbol-hash-3",
         type: "class",
         visibility: "public",
         blurb: "Original blurb",
@@ -126,7 +163,8 @@ describe("SymbolDBService", () => {
       const upserted = await service.upsertSymbol({
         repositoryId: repository.id,
         symbol: "RepositoryDBService",
-        file: "src/db/services/repository.ts",
+        fileId,
+        hash: "symbol-hash-3",
         type: "class",
         visibility: "public",
         blurb: "Updated blurb",
@@ -146,11 +184,19 @@ describe("SymbolDBService", () => {
         name: "CodeAtlas",
         path: "/tmp/codeatlas",
       });
+      const firstFileId = await createFile(ctx, repository.id, "src/index.ts");
+      const secondFileId = await createFile(
+        ctx,
+        repository.id,
+        "src/mcp/index.ts",
+        "file-hash-2",
+      );
 
       const first = await service.upsertSymbol({
         repositoryId: repository.id,
         symbol: "bootstrap",
-        file: "src/index.ts",
+        fileId: firstFileId,
+        hash: "symbol-hash-4",
         type: "function",
         visibility: "public",
       });
@@ -158,7 +204,8 @@ describe("SymbolDBService", () => {
       const second = await service.upsertSymbol({
         repositoryId: repository.id,
         symbol: "bootstrap",
-        file: "src/mcp/index.ts",
+        fileId: secondFileId,
+        hash: "symbol-hash-5",
         type: "function",
         visibility: "public",
       });
@@ -180,21 +227,27 @@ describe("SymbolDBService", () => {
         name: "CodeAtlas",
         path: "/tmp/codeatlas",
       });
+      const fileId = await createFile(
+        ctx,
+        repository.id,
+        "src/db/services/repository.ts",
+      );
       const created = await service.createSymbol({
         repositoryId: repository.id,
         symbol: "RepositoryDBService",
-        file: "src/db/services/repository.ts",
+        fileId,
+        hash: "symbol-hash-6",
         type: "class",
         visibility: "public",
       });
 
       const updated = await service.updateSymbol(created.id, {
-        file: "src/db/services/repository.v2.ts",
+        fileId,
       });
 
       expect(updated).not.toBeNull();
       expect(updated?.id).toBe(created.id);
-      expect(updated?.file).toBe("src/db/services/repository.v2.ts");
+      expect(updated?.fileId).toBe(fileId);
       expect(updated?.symbol).toBe("RepositoryDBService");
     });
   });
@@ -209,10 +262,16 @@ describe("SymbolDBService", () => {
         name: "CodeAtlas",
         path: "/tmp/codeatlas",
       });
+      const fileId = await createFile(
+        ctx,
+        repository.id,
+        "src/db/services/repository.ts",
+      );
       const created = await service.createSymbol({
         repositoryId: repository.id,
         symbol: "RepositoryDBService",
-        file: "src/db/services/repository.ts",
+        fileId,
+        hash: "symbol-hash-7",
         type: "class",
         visibility: "public",
       });

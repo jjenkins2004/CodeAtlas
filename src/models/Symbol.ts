@@ -15,7 +15,8 @@ export type Visibility = (typeof VISIBILITY_LEVELS)[number];
 interface SymbolCoreFields {
   repositoryId: string;
   symbol: string;
-  file: string;
+  fileId: string;
+  hash: string;
   type: SymbolType;
   visibility: Visibility;
 }
@@ -52,7 +53,7 @@ export interface SymbolQueryResult extends Pick<
   | "id"
   | "repositoryId"
   | "symbol"
-  | "file"
+  | "fileId"
   | "type"
   | "visibility"
   | "blurb"

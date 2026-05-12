@@ -40,6 +40,30 @@ export const repositories = pgTable("repositories", {
 });
 
 /**
+ * Files table — stores the latest known hash for each tracked file.
+ */
+export const files = pgTable(
+  "files",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    repositoryId: uuid("repository_id")
+      .notNull()
+      .references(() => repositories.id, { onDelete: "cascade" }),
+    path: text("path").notNull(),
+    hash: text("hash").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique("files_repository_path_unique").on(table.repositoryId, table.path),
+  ],
+);
+
+/**
  * Symbols table — stores extracted public symbols and their embeddings.
  */
 export const symbols = pgTable(
@@ -52,7 +76,10 @@ export const symbols = pgTable(
 
     // Tree-sitter extracted
     symbol: text("symbol").notNull(),
-    file: text("file").notNull(),
+    fileId: uuid("file_id")
+      .notNull()
+      .references(() => files.id, { onDelete: "cascade" }),
+    hash: text("hash").notNull(),
     type: symbolTypeEnum("type").notNull(),
     visibility: visibilityEnum("visibility").notNull().default("public"),
 
@@ -75,7 +102,7 @@ export const symbols = pgTable(
     unique("symbols_repository_symbol_file_unique").on(
       table.repositoryId,
       table.symbol,
-      table.file,
+      table.fileId,
     ),
     index("symbols_embedding_cosine_idx").using(
       "hnsw",
