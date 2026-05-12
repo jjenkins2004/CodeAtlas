@@ -2,6 +2,8 @@ import { fileDBService } from "../db/services/file.js";
 import { symbolDBService } from "../db/services/symbol.js";
 import type { FileDBServicePort } from "../db/services/file.js";
 import type { SymbolDBService } from "../db/services/symbol.js";
+import { debounceService } from "./DebounceService.js";
+import type { DebounceServicePort } from "./DebounceService.js";
 import { hasherService } from "./Hasher.js";
 import type { HasherServicePort } from "./Hasher.js";
 import type { Symbol } from "../models/Symbol.js";
@@ -10,6 +12,7 @@ export type SymbolUpdateGuardCallback = (symbol: Symbol) => void;
 
 export type SymbolUpdateGuardServiceConstructor = new (
   repositoryId: string,
+  debounceService?: DebounceServicePort,
   hasherService?: HasherServicePort,
   fileDBService?: FileDBServicePort,
   symbolDBService?: SymbolDBService,
@@ -26,6 +29,7 @@ export interface SymbolUpdateGuardServicePort {
 export class SymbolUpdateGuardService implements SymbolUpdateGuardServicePort {
   constructor(
     private readonly repositoryId: string,
+    private readonly debounceService: DebounceServicePort = debounceService,
     private readonly hasherService: HasherServicePort = hasherService,
     private readonly fileDBService: FileDBServicePort = fileDBService,
     private readonly symbolDBService: SymbolDBService = symbolDBService,
