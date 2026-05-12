@@ -136,6 +136,56 @@ describe("FileDBService", () => {
   });
 
   // ---------------------------------------------------------------------------
+  // getFileByRepositoryAndPath()
+  // ---------------------------------------------------------------------------
+
+  describe("getFileByRepositoryAndPath()", () => {
+    it("returns the file matching the repository and path", async () => {
+      const repository = await repositoryService.createRepository({
+        name: "CodeAtlas",
+        path: "/tmp/codeatlas",
+      });
+
+      const created = await service.createFile({
+        repositoryId: repository.id,
+        path: "src/index.ts",
+        hash: "file-hash-1",
+      });
+
+      const file = await service.getFileByRepositoryAndPath(
+        repository.id,
+        "src/index.ts",
+      );
+
+      expect(file).not.toBeNull();
+      expect(file?.id).toBe(created.id);
+      expect(file?.repositoryId).toBe(repository.id);
+      expect(file?.path).toBe("src/index.ts");
+      expect(file?.hash).toBe("file-hash-1");
+    });
+
+    it("returns null when the repository and path do not match", async () => {
+      const repository = await repositoryService.createRepository({
+        name: "CodeAtlas",
+        path: "/tmp/codeatlas",
+      });
+
+      await service.createFile({
+        repositoryId: repository.id,
+        path: "src/index.ts",
+        hash: "file-hash-1",
+      });
+
+      const file = await service.getFileByRepositoryAndPath(
+        repository.id,
+        "src/missing.ts",
+      );
+
+      expect(file).toBeNull();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // removeFile()
   // ---------------------------------------------------------------------------
 

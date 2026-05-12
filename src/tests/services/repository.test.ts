@@ -17,6 +17,18 @@ import {
   type RepositoryOrchestratorServiceConfig,
 } from "../../services/Repository.js";
 import { createMockRepoDBService } from "../fixtures/mockRepoDBService.js";
+import {
+  createMockFileDBService,
+  type MockFileDBService,
+} from "../fixtures/mockFileDBService.js";
+import {
+  createMockDebounceService,
+  type MockDebounceService,
+} from "../fixtures/mockDebounceService.js";
+import {
+  createMockHasherService,
+  type MockHasherServiceInstance,
+} from "../fixtures/mockHasher.js";
 import { createMockRepositoryIndexerService } from "../fixtures/mockRepositoryIndexerService.js";
 import {
   createMockSymbolUpdateGuardServiceType,
@@ -35,6 +47,9 @@ type ServiceDeps = {
   repositoryIndexerService: ReturnType<
     typeof createMockRepositoryIndexerService
   >;
+  fileDBService: MockFileDBService;
+  hasherService: MockHasherServiceInstance;
+  debounceService: MockDebounceService;
   symbolUpdateGuardServiceType: MockSymbolUpdateGuardServiceType & {
     instances: InstanceType<MockSymbolUpdateGuardServiceType>[];
   };
@@ -83,11 +98,17 @@ function makeServiceDeps(
 ): ServiceDeps {
   const repositoryDBService = createMockRepoDBService();
   const repositoryIndexerService = createMockRepositoryIndexerService();
+  const fileDBService = createMockFileDBService();
+  const hasherService = createMockHasherService();
+  const debounceService = createMockDebounceService();
   const symbolUpdateGuardServiceType = createMockSymbolUpdateGuardServiceType();
   const watcher = createMockWatcher();
   const service = new RepositoryOrchestratorService({
     repositoryDBService,
     indexService: repositoryIndexerService,
+    fileDBService,
+    hasherService,
+    debounceService,
     symbolUpdateGuardServiceType,
     watcher,
     ...config,
@@ -96,6 +117,9 @@ function makeServiceDeps(
   return {
     repositoryDBService,
     repositoryIndexerService,
+    fileDBService,
+    hasherService,
+    debounceService,
     symbolUpdateGuardServiceType,
     watcher,
     service,
@@ -201,7 +225,7 @@ describe("RepositoryOrchestratorService", () => {
       expect(repositoryDBService.removeRepository).not.toHaveBeenCalled();
     });
 
-    it("forwards watcher events to the symbol guard service", async () => {
+    it("forwards watcher events to the debounce service", async () => {
       const tempDirectoryPath = await makeTempDirectory();
       const createdRepository = makeRepository({
         id: "repo-11",
@@ -210,7 +234,7 @@ describe("RepositoryOrchestratorService", () => {
       const {
         repositoryDBService,
         repositoryIndexerService,
-        symbolUpdateGuardServiceType,
+        debounceService,
         watcher,
         service,
       } = makeServiceDeps();
@@ -232,15 +256,240 @@ describe("RepositoryOrchestratorService", () => {
       watcherConfig.onUpdate("/tmp/updated.ts");
       watcherConfig.onDeletion("/tmp/deleted.ts");
 
-      expect(
-        symbolUpdateGuardServiceType.instances[0]?.fileWasCreated,
-      ).toHaveBeenCalledWith("/tmp/created.ts");
+      expect(debounceService.debounce).toHaveBeenCalledTimes(3);
+      expect(debounceService.debounce).toHaveBeenNthCalledWith(
+        1,
+        "repo-11:/tmp/created.ts",
+        "/tmp/created.ts",
+        5000,
+        expect.any(Function),
+      );
+      expect(debounceService.debounce).toHaveBeenNthCalledWith(
+        2,
+        "repo-11:/tmp/updated.ts",
+        "/tmp/updated.ts",
+        5000,
+        expect.any(Function),
+      );
+      expect(debounceService.debounce).toHaveBeenNthCalledWith(
+        3,
+        "repo-11:/tmp/deleted.ts",
+        "/tmp/deleted.ts",
+        5000,
+        expect.any(Function),
+      );
+    });
+
+    it("creates a file through the debounce service callback", async () => {
+      const tempDirectoryPath = await makeTempDirectory();
+      const createdRepository = makeRepository({
+        id: "repo-11",
+        path: tempDirectoryPath,
+      });
+      const repositoryRelativeFilePath = "src/example.ts";
+      const createdFilePath = path.join(
+        tempDirectoryPath,
+        repositoryRelativeFilePath,
+      );
+      const {
+        repositoryDBService,
+        repositoryIndexerService,
+        fileDBService,
+        hasherService,
+        debounceService,
+        symbolUpdateGuardServiceType,
+        watcher,
+        service,
+      } = makeServiceDeps();
+
+      tempPaths.push(tempDirectoryPath);
+      repositoryDBService.createRepository.mockResolvedValue(createdRepository);
+      repositoryIndexerService.indexRepository.mockResolvedValue(undefined);
+      fileDBService.createFile.mockResolvedValue({
+        id: "file-created",
+        repositoryId: "repo-11",
+        path: repositoryRelativeFilePath,
+        hash: "file-hash-created",
+        createdAt: new Date("2024-01-01T00:00:00.000Z"),
+        updatedAt: new Date("2024-01-01T00:00:00.000Z"),
+      });
+      hasherService.hashFile.mockResolvedValueOnce("file-hash-created");
+      watcher.start.mockResolvedValue(undefined);
+
+      await service.trackRepository(makeRepositoryInput(tempDirectoryPath));
+
+      const watcherConfig = watcher.start.mock.calls[0]?.[0] as {
+        onCreation: (filePath: string) => void;
+        onUpdate: (filePath: string) => void;
+        onDeletion: (filePath: string) => void;
+      };
+
+      watcherConfig.onCreation(createdFilePath);
+
+      const creationCallback = debounceService.debounce.mock.calls[0]?.[3] as
+        | (() => Promise<void>)
+        | undefined;
+
+      await creationCallback?.();
+
+      expect(debounceService.debounce).toHaveBeenCalledTimes(1);
+      expect(debounceService.debounce).toHaveBeenCalledWith(
+        `repo-11:${createdFilePath}`,
+        createdFilePath,
+        5000,
+        expect.any(Function),
+      );
+      expect(hasherService.hashFile).toHaveBeenCalledWith(createdFilePath);
+      expect(fileDBService.createFile).toHaveBeenCalledWith({
+        repositoryId: "repo-11",
+        path: repositoryRelativeFilePath,
+        hash: "file-hash-created",
+      });
       expect(
         symbolUpdateGuardServiceType.instances[0]?.fileWasUpdated,
-      ).toHaveBeenCalledWith("/tmp/updated.ts");
+      ).toHaveBeenCalledWith(repositoryRelativeFilePath);
+    });
+
+    it("updates a file through the debounce service callback", async () => {
+      const tempDirectoryPath = await makeTempDirectory();
+      const createdRepository = makeRepository({
+        id: "repo-11",
+        path: tempDirectoryPath,
+      });
+      const repositoryRelativeFilePath = "src/example.ts";
+      const createdFilePath = path.join(
+        tempDirectoryPath,
+        repositoryRelativeFilePath,
+      );
+      const existingFile = {
+        id: "file-11",
+        repositoryId: "repo-11",
+        path: repositoryRelativeFilePath,
+        hash: "file-hash-existing",
+        createdAt: new Date("2024-01-01T00:00:00.000Z"),
+        updatedAt: new Date("2024-01-01T00:00:00.000Z"),
+      };
+      const {
+        repositoryDBService,
+        repositoryIndexerService,
+        fileDBService,
+        hasherService,
+        debounceService,
+        symbolUpdateGuardServiceType,
+        watcher,
+        service,
+      } = makeServiceDeps();
+
+      tempPaths.push(tempDirectoryPath);
+      repositoryDBService.createRepository.mockResolvedValue(createdRepository);
+      repositoryIndexerService.indexRepository.mockResolvedValue(undefined);
+      fileDBService.getFileByRepositoryAndPath.mockResolvedValue(existingFile);
+      fileDBService.updateFile.mockResolvedValue({
+        ...existingFile,
+        hash: "file-hash-updated",
+      });
+      hasherService.hashFile.mockResolvedValueOnce("file-hash-updated");
+      watcher.start.mockResolvedValue(undefined);
+
+      await service.trackRepository(makeRepositoryInput(tempDirectoryPath));
+
+      const watcherConfig = watcher.start.mock.calls[0]?.[0] as {
+        onCreation: (filePath: string) => void;
+        onUpdate: (filePath: string) => void;
+        onDeletion: (filePath: string) => void;
+      };
+
+      watcherConfig.onUpdate(createdFilePath);
+
+      const updateCallback = debounceService.debounce.mock.calls[0]?.[3] as
+        | (() => Promise<void>)
+        | undefined;
+
+      await updateCallback?.();
+
+      expect(debounceService.debounce).toHaveBeenCalledTimes(1);
+      expect(debounceService.debounce).toHaveBeenCalledWith(
+        `repo-11:${createdFilePath}`,
+        createdFilePath,
+        5000,
+        expect.any(Function),
+      );
+      expect(fileDBService.getFileByRepositoryAndPath).toHaveBeenCalledWith(
+        "repo-11",
+        repositoryRelativeFilePath,
+      );
+      expect(hasherService.hashFile).toHaveBeenCalledWith(createdFilePath);
+      expect(fileDBService.updateFile).toHaveBeenCalledWith(existingFile.id, {
+        hash: "file-hash-updated",
+      });
       expect(
-        symbolUpdateGuardServiceType.instances[0]?.fileWasDeleted,
-      ).toHaveBeenCalledWith("/tmp/deleted.ts");
+        symbolUpdateGuardServiceType.instances[0]?.fileWasUpdated,
+      ).toHaveBeenCalledWith(repositoryRelativeFilePath);
+    });
+
+    it("deletes a file through the debounce service callback", async () => {
+      const tempDirectoryPath = await makeTempDirectory();
+      const createdRepository = makeRepository({
+        id: "repo-11",
+        path: tempDirectoryPath,
+      });
+      const repositoryRelativeFilePath = "src/example.ts";
+      const createdFilePath = path.join(
+        tempDirectoryPath,
+        repositoryRelativeFilePath,
+      );
+      const existingFile = {
+        id: "file-11",
+        repositoryId: "repo-11",
+        path: repositoryRelativeFilePath,
+        hash: "file-hash-existing",
+        createdAt: new Date("2024-01-01T00:00:00.000Z"),
+        updatedAt: new Date("2024-01-01T00:00:00.000Z"),
+      };
+      const {
+        repositoryDBService,
+        repositoryIndexerService,
+        fileDBService,
+        debounceService,
+        watcher,
+        service,
+      } = makeServiceDeps();
+
+      tempPaths.push(tempDirectoryPath);
+      repositoryDBService.createRepository.mockResolvedValue(createdRepository);
+      repositoryIndexerService.indexRepository.mockResolvedValue(undefined);
+      fileDBService.getFileByRepositoryAndPath.mockResolvedValue(existingFile);
+      fileDBService.removeFile.mockResolvedValue(true);
+      watcher.start.mockResolvedValue(undefined);
+
+      await service.trackRepository(makeRepositoryInput(tempDirectoryPath));
+
+      const watcherConfig = watcher.start.mock.calls[0]?.[0] as {
+        onCreation: (filePath: string) => void;
+        onUpdate: (filePath: string) => void;
+        onDeletion: (filePath: string) => void;
+      };
+
+      watcherConfig.onDeletion(createdFilePath);
+
+      const deletionCallback = debounceService.debounce.mock.calls[0]?.[3] as
+        | (() => Promise<void>)
+        | undefined;
+
+      await deletionCallback?.();
+
+      expect(debounceService.debounce).toHaveBeenCalledTimes(1);
+      expect(debounceService.debounce).toHaveBeenCalledWith(
+        `repo-11:${createdFilePath}`,
+        createdFilePath,
+        5000,
+        expect.any(Function),
+      );
+      expect(fileDBService.getFileByRepositoryAndPath).toHaveBeenCalledWith(
+        "repo-11",
+        repositoryRelativeFilePath,
+      );
+      expect(fileDBService.removeFile).toHaveBeenCalledWith(existingFile.id);
     });
 
     it("forwards symbol reindex callbacks to the indexer service", async () => {

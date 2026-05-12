@@ -1,10 +1,21 @@
 export type DebounceCallback<T> = (obj: T) => void;
 
+export interface DebounceServicePort {
+  debounce<T>(
+    key: string,
+    obj: T,
+    time: number,
+    callback: DebounceCallback<T>,
+  ): void;
+
+  hasPending(key: string): boolean;
+}
+
 type DebounceEntry = {
   timeoutId: ReturnType<typeof setTimeout>;
 };
 
-export class DebounceService {
+export class DebounceService implements DebounceServicePort {
   private readonly entries = new Map<string, DebounceEntry>();
 
   hasPending(key: string): boolean {

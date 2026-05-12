@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { client } from "../client.js";
 import { files } from "../schema.js";
 import { isUniqueConstraintError } from "../utils.js";
@@ -12,6 +12,13 @@ import { BaseDBService } from "./base.js";
 export interface FileDBServicePort {
   listFiles(): Promise<File[]>;
   getFile(id: string): Promise<File | null>;
+  /**
+   * Returns the tracked file for a repository-relative path.
+   */
+  getFileByRepositoryAndPath(
+    repositoryId: string,
+    repositoryRelativePath: string,
+  ): Promise<File | null>;
   createFile(input: CreateFileInput): Promise<File>;
   updateFile(id: string, input: UpdateFileInput): Promise<File | null>;
   removeFile(id: string): Promise<boolean>;
@@ -40,6 +47,25 @@ export class FileDBService extends BaseDBService implements FileDBServicePort {
   async getFile(id: string): Promise<File | null> {
     return this.executeQuery("getFile", async () => {
       const [file] = await this.db.select().from(files).where(eq(files.id, id));
+
+      return file ?? null;
+    });
+  }
+
+  async getFileByRepositoryAndPath(
+    repositoryId: string,
+    repositoryRelativePath: string,
+  ): Promise<File | null> {
+    return this.executeQuery("getFileByRepositoryAndPath", async () => {
+      const [file] = await this.db
+        .select()
+        .from(files)
+        .where(
+          and(
+            eq(files.repositoryId, repositoryId),
+            eq(files.path, repositoryRelativePath),
+          ),
+        );
 
       return file ?? null;
     });

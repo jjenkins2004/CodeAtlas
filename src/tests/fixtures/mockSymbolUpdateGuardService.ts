@@ -5,9 +5,7 @@ export type MockSymbolUpdateGuardServiceInstance =
   SymbolUpdateGuardServicePort & {
     repositoryId: string;
     registerOnSymbolShouldBeReindexed: ReturnType<typeof vi.fn>;
-    fileWasCreated: ReturnType<typeof vi.fn>;
     fileWasUpdated: ReturnType<typeof vi.fn>;
-    fileWasDeleted: ReturnType<typeof vi.fn>;
   };
 
 export type MockSymbolUpdateGuardServiceType = new (
@@ -21,9 +19,7 @@ export function createMockSymbolUpdateGuardServiceType(): MockSymbolUpdateGuardS
 
   class MockSymbolUpdateGuardService implements MockSymbolUpdateGuardServiceInstance {
     registerOnSymbolShouldBeReindexed = vi.fn();
-    fileWasCreated = vi.fn();
     fileWasUpdated = vi.fn();
-    fileWasDeleted = vi.fn();
 
     constructor(public readonly repositoryId: string) {
       instances.push(this);

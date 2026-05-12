@@ -23,12 +23,27 @@ import {
   type SymbolUpdateGuardServiceConstructor,
   type SymbolUpdateGuardServicePort,
 } from "./SymbolUpdateGuardService.js";
+import {
+  debounceService as defaultDebounceService,
+  type DebounceServicePort,
+} from "./DebounceService.js";
+import {
+  fileDBService as defaultFileDBService,
+  type FileDBServicePort,
+} from "../db/services/file.js";
+import {
+  hasherService as defaultHasherService,
+  type HasherServicePort,
+} from "./Hasher.js";
 import { Watcher, type WatcherPort } from "./Watcher.js";
 
 export interface RepositoryOrchestratorServiceConfig {
   repositoryDBService?: RepositoryDBServicePort;
   indexService?: IndexerServicePort;
   symbolUpdateGuardServiceType?: SymbolUpdateGuardServiceConstructor;
+  debounceService?: DebounceServicePort;
+  fileDBService?: FileDBServicePort;
+  hasherService?: HasherServicePort;
   watcher?: WatcherPort;
 }
 
@@ -37,11 +52,15 @@ const defaultRepositoryOrchestratorServiceConfig: Required<RepositoryOrchestrato
     repositoryDBService: defaultRepositoryDBService,
     indexService: defaultIndexerService,
     symbolUpdateGuardServiceType: SymbolUpdateGuardService,
+    debounceService: defaultDebounceService,
+    fileDBService: defaultFileDBService,
+    hasherService: defaultHasherService,
     watcher: new Watcher(),
   };
 
 export class RepositoryOrchestratorService {
   private readonly config: Required<RepositoryOrchestratorServiceConfig>;
+  private readonly debounceTimeMs = 5000;
   private readonly symbolUpdateGuardServices = new Map<
     string,
     SymbolUpdateGuardServicePort
@@ -117,20 +136,93 @@ export class RepositoryOrchestratorService {
     repository: Repository,
     symbolUpdateGuardService: SymbolUpdateGuardServicePort,
   ): Promise<void> {
+    const debounceFileUpdate = (
+      filePath: string,
+      action: () => Promise<void> | void,
+    ): void => {
+      this.config.debounceService.debounce(
+        `${repository.id}:${filePath}`,
+        filePath,
+        this.debounceTimeMs,
+        async () => {
+          await action();
+        },
+      );
+    };
+
     await this.config.watcher.start({
       repositoryId: repository.id,
       rootPath: repository.path,
       ignoreFilter: IgnoreFilter.createFilter(repository.path),
       onCreation: (filePath) => {
-        symbolUpdateGuardService.fileWasCreated(filePath);
+        debounceFileUpdate(filePath, async () => {
+          const repositoryRelativePath = this.toRepositoryRelativePath(
+            repository.path,
+            filePath,
+          );
+          const fileHash = await this.config.hasherService.hashFile(filePath);
+
+          await this.config.fileDBService.createFile({
+            repositoryId: repository.id,
+            path: repositoryRelativePath,
+            hash: fileHash,
+          });
+
+          symbolUpdateGuardService.fileWasUpdated(repositoryRelativePath);
+        });
       },
       onUpdate: (filePath) => {
-        symbolUpdateGuardService.fileWasUpdated(filePath);
+        debounceFileUpdate(filePath, async () => {
+          const repositoryRelativePath = this.toRepositoryRelativePath(
+            repository.path,
+            filePath,
+          );
+          const existingFile =
+            await this.config.fileDBService.getFileByRepositoryAndPath(
+              repository.id,
+              repositoryRelativePath,
+            );
+
+          if (!existingFile) {
+            return;
+          }
+
+          const fileHash = await this.config.hasherService.hashFile(filePath);
+
+          await this.config.fileDBService.updateFile(existingFile.id, {
+            hash: fileHash,
+          });
+
+          symbolUpdateGuardService.fileWasUpdated(repositoryRelativePath);
+        });
       },
       onDeletion: (filePath) => {
-        symbolUpdateGuardService.fileWasDeleted(filePath);
+        debounceFileUpdate(filePath, async () => {
+          const repositoryRelativePath = this.toRepositoryRelativePath(
+            repository.path,
+            filePath,
+          );
+          const existingFile =
+            await this.config.fileDBService.getFileByRepositoryAndPath(
+              repository.id,
+              repositoryRelativePath,
+            );
+
+          if (!existingFile) {
+            return;
+          }
+
+          await this.config.fileDBService.removeFile(existingFile.id);
+        });
       },
     });
+  }
+
+  private toRepositoryRelativePath(
+    repositoryPath: string,
+    filePath: string,
+  ): string {
+    return path.relative(repositoryPath, filePath);
   }
 
   private getOrCreateSymbolUpdateGuardService(
