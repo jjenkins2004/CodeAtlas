@@ -1,14 +1,11 @@
-export type DebounceCallback<T> = (obj: T) => void;
+export type DebounceCallback = () => void;
 
 export interface DebounceServicePort {
-  debounce<T>(
-    key: string,
-    obj: T,
-    time: number,
-    callback: DebounceCallback<T>,
-  ): void;
+  debounce(key: string, time: number, callback: DebounceCallback): void;
 
   hasPending(key: string): boolean;
+
+  remove(key: string): void;
 }
 
 type DebounceEntry = {
@@ -22,12 +19,18 @@ export class DebounceService implements DebounceServicePort {
     return this.entries.has(key);
   }
 
-  debounce<T>(
-    key: string,
-    obj: T,
-    time: number,
-    callback: DebounceCallback<T>,
-  ): void {
+  remove(key: string): void {
+    const existingEntry = this.entries.get(key);
+
+    if (!existingEntry) {
+      return;
+    }
+
+    clearTimeout(existingEntry.timeoutId);
+    this.entries.delete(key);
+  }
+
+  debounce(key: string, time: number, callback: DebounceCallback): void {
     const existingEntry = this.entries.get(key);
 
     if (existingEntry) {
@@ -37,7 +40,7 @@ export class DebounceService implements DebounceServicePort {
     const entry: DebounceEntry = {
       timeoutId: setTimeout(() => {
         this.entries.delete(key);
-        callback(obj);
+        callback();
       }, time),
     };
 

@@ -18,6 +18,25 @@ function mapSymbol(record: SymbolRecord): Symbol {
 }
 
 export class SymbolDBService extends BaseDBService {
+  async listSymbolsByRepositoryFile(
+    repositoryId: string,
+    fileId: string,
+  ): Promise<Symbol[]> {
+    return this.executeQuery("listSymbolsByRepositoryFile", async () => {
+      const records = await this.db
+        .select()
+        .from(symbols)
+        .where(
+          and(
+            eq(symbols.repositoryId, repositoryId),
+            eq(symbols.fileId, fileId),
+          ),
+        );
+
+      return records.map(mapSymbol);
+    });
+  }
+
   async removeSymbolsByRepository(repositoryId: string): Promise<number> {
     return this.executeQuery("removeSymbolsByRepository", async () => {
       const deleted = await this.db

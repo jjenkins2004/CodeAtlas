@@ -12,7 +12,7 @@ export type SymbolType = (typeof SYMBOL_TYPES)[number];
 
 export type Visibility = (typeof VISIBILITY_LEVELS)[number];
 
-interface SymbolCoreFields {
+export interface SymbolCoreFields {
   repositoryId: string;
   symbol: string;
   fileId: string;

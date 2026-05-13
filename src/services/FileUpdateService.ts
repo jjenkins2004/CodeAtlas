@@ -15,7 +15,11 @@ import {
   type FileUpdateTranslatorServiceConstructor,
   type FileUpdateTranslatorServicePort,
 } from "./FileUpdateTranslatorService.js";
-import type { Symbol } from "../models/Symbol.js";
+import type {
+  Symbol,
+  SymbolCoreFields,
+  SymbolSemanticFields,
+} from "../models/Symbol.js";
 
 export type FileUpdateOperation = "created" | "updated" | "deleted";
 
@@ -79,7 +83,6 @@ export class FileUpdateService implements FileUpdateServicePort {
   ): void {
     this.config.debounceService.debounce(
       `${repositoryId}:${repositoryRelativePath}`,
-      repositoryRelativePath,
       this.debounceTimeMs,
       async () => {
         await this.processFileUpdate(
@@ -117,7 +120,7 @@ export class FileUpdateService implements FileUpdateServicePort {
           hash: fileHash,
         });
 
-        this.getOrCreateFileUpdateTranslatorService(
+        await this.getOrCreateFileUpdateTranslatorService(
           repositoryId,
         ).fileWasUpdated(repositoryRelativePath);
         return;
@@ -140,7 +143,7 @@ export class FileUpdateService implements FileUpdateServicePort {
           hash: fileHash,
         });
 
-        this.getOrCreateFileUpdateTranslatorService(
+        await this.getOrCreateFileUpdateTranslatorService(
           repositoryId,
         ).fileWasUpdated(repositoryRelativePath);
         return;
@@ -172,14 +175,22 @@ export class FileUpdateService implements FileUpdateServicePort {
     }
 
     const fileUpdateTranslatorService =
-      new this.config.fileUpdateTranslatorServiceType(
+      new this.config.fileUpdateTranslatorServiceType({
         repositoryId,
-        this.config.debounceService,
-      );
+      });
 
     fileUpdateTranslatorService.registerOnSymbolShouldBeReindexed(
-      (symbol: Symbol) => {
-        void this.config.indexService.indexSymbol(symbol);
+      (
+        symbolCoreFields: SymbolCoreFields,
+        symbolSemanticFields: SymbolSemanticFields,
+      ) => {
+        void this.config.indexService.indexSymbol({
+          ...symbolCoreFields,
+          ...symbolSemanticFields,
+          id: `${symbolCoreFields.fileId}:${symbolCoreFields.symbol}`,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
       },
     );
 

@@ -32,42 +32,62 @@ describe("DebounceService", () => {
   // ---------------------------------------------------------------------------
 
   describe("debounce()", () => {
-    it("invokes the callback with the latest object after the delay", () => {
-      const callback = vi.fn<(item: DebouncedItem) => void>();
-      const firstItem: DebouncedItem = { id: "a", value: 1 };
-      const secondItem: DebouncedItem = { id: "b", value: 2 };
+    it("resets the timer for the same key", () => {
+      const callback = vi.fn<() => void>();
 
-      service.debounce("item", firstItem, 100, callback);
-      service.debounce("item", secondItem, 100, callback);
+      service.debounce("item", 100, callback);
+      vi.advanceTimersByTime(50);
+      service.debounce("item", 100, callback);
 
       expect(service.hasPending("item")).toBe(true);
 
-      vi.advanceTimersByTime(100);
+      vi.advanceTimersByTime(50);
+
+      expect(callback).not.toHaveBeenCalled();
+      expect(service.hasPending("item")).toBe(true);
+
+      vi.advanceTimersByTime(50);
 
       expect(callback).toHaveBeenCalledTimes(1);
-      expect(callback).toHaveBeenCalledWith(secondItem);
       expect(service.hasPending("item")).toBe(false);
     });
 
     it("keeps separate timers for different keys", () => {
-      const callback = vi.fn<(item: DebouncedItem) => void>();
-      const firstItem: DebouncedItem = { id: "a", value: 1 };
-      const secondItem: DebouncedItem = { id: "b", value: 2 };
+      const callback = vi.fn<() => void>();
 
-      service.debounce("first", firstItem, 100, callback);
-      service.debounce("second", secondItem, 200, callback);
+      service.debounce("first", 100, callback);
+      service.debounce("second", 200, callback);
 
       vi.advanceTimersByTime(100);
 
       expect(callback).toHaveBeenCalledTimes(1);
-      expect(callback).toHaveBeenNthCalledWith(1, firstItem);
 
-      service.debounce("second", secondItem, 100, callback);
+      service.debounce("second", 100, callback);
 
       vi.advanceTimersByTime(100);
 
       expect(callback).toHaveBeenCalledTimes(2);
-      expect(callback).toHaveBeenNthCalledWith(2, secondItem);
+    });
+
+    it("removes a pending timer when requested", () => {
+      const callback = vi.fn<() => void>();
+
+      service.debounce("item", 100, callback);
+
+      expect(service.hasPending("item")).toBe(true);
+
+      service.remove("item");
+
+      expect(service.hasPending("item")).toBe(false);
+
+      vi.advanceTimersByTime(100);
+
+      expect(callback).not.toHaveBeenCalled();
+    });
+
+    it("ignores remove requests for missing keys", () => {
+      expect(() => service.remove("missing")).not.toThrow();
+      expect(service.hasPending("missing")).toBe(false);
     });
   });
 });

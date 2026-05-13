@@ -108,7 +108,7 @@ describe("FileUpdateService", () => {
       "created",
     );
 
-    const callback = debounceService.debounce.mock.calls[0]?.[3] as
+    const callback = debounceService.debounce.mock.calls[0]?.[2] as
       | (() => Promise<void>)
       | undefined;
 
@@ -116,7 +116,6 @@ describe("FileUpdateService", () => {
 
     expect(debounceService.debounce).toHaveBeenCalledWith(
       `repo-1:${repositoryRelativePath}`,
-      repositoryRelativePath,
       5000,
       expect.any(Function),
     );
@@ -148,11 +147,56 @@ describe("FileUpdateService", () => {
 
     const callbackForSymbolReindex = fileUpdateTranslatorServiceType
       .instances[0]?.registerOnSymbolShouldBeReindexed.mock.calls[0]?.[0] as
-      | ((symbol: { id: string }) => void)
+      | ((
+          symbolCoreFields: {
+            repositoryId: string;
+            symbol: string;
+            fileId: string;
+            hash: string;
+            type: "function";
+            visibility: "public";
+          },
+          symbolSemanticFields: {
+            blurb: string | null;
+            implementation: string | null;
+            tags: string[];
+            embedding: number[] | null;
+          },
+        ) => void)
       | undefined;
 
-    callbackForSymbolReindex?.({ id: "symbol-1" } as never);
-    expect(indexService.indexSymbol).toHaveBeenCalledWith({ id: "symbol-1" });
+    callbackForSymbolReindex?.(
+      {
+        repositoryId: "repo-1",
+        symbol: "Example.run",
+        fileId: "file-1",
+        hash: "symbol-hash-1",
+        type: "function",
+        visibility: "public",
+      },
+      {
+        blurb: null,
+        implementation: null,
+        tags: [],
+        embedding: null,
+      },
+    );
+
+    expect(indexService.indexSymbol).toHaveBeenCalledWith({
+      repositoryId: "repo-1",
+      symbol: "Example.run",
+      fileId: "file-1",
+      hash: "symbol-hash-1",
+      type: "function",
+      visibility: "public",
+      blurb: null,
+      implementation: null,
+      tags: [],
+      embedding: null,
+      id: "file-1:Example.run",
+      createdAt: expect.any(Date),
+      updatedAt: expect.any(Date),
+    });
   });
 
   it("updates a tracked file after debounce", async () => {
@@ -190,7 +234,7 @@ describe("FileUpdateService", () => {
       "updated",
     );
 
-    const callback = debounceService.debounce.mock.calls[0]?.[3] as
+    const callback = debounceService.debounce.mock.calls[0]?.[2] as
       | (() => Promise<void>)
       | undefined;
 
@@ -237,7 +281,7 @@ describe("FileUpdateService", () => {
       "deleted",
     );
 
-    const callback = debounceService.debounce.mock.calls[0]?.[3] as
+    const callback = debounceService.debounce.mock.calls[0]?.[2] as
       | (() => Promise<void>)
       | undefined;
 
@@ -285,7 +329,7 @@ describe("FileUpdateService", () => {
       "created",
     );
 
-    const firstCallback = debounceService.debounce.mock.calls[0]?.[3] as
+    const firstCallback = debounceService.debounce.mock.calls[0]?.[2] as
       | (() => Promise<void>)
       | undefined;
 
@@ -305,7 +349,7 @@ describe("FileUpdateService", () => {
       "created",
     );
 
-    const secondCallback = debounceService.debounce.mock.calls[1]?.[3] as
+    const secondCallback = debounceService.debounce.mock.calls[1]?.[2] as
       | (() => Promise<void>)
       | undefined;
 
