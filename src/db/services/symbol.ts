@@ -37,6 +37,17 @@ export class SymbolDBService extends BaseDBService {
     });
   }
 
+  async listSymbolsByRepository(repositoryId: string): Promise<Symbol[]> {
+    return this.executeQuery("listSymbolsByRepository", async () => {
+      const records = await this.db
+        .select()
+        .from(symbols)
+        .where(eq(symbols.repositoryId, repositoryId));
+
+      return records.map(mapSymbol);
+    });
+  }
+
   async removeSymbolsByRepository(repositoryId: string): Promise<number> {
     return this.executeQuery("removeSymbolsByRepository", async () => {
       const deleted = await this.db

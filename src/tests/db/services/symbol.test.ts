@@ -135,6 +135,77 @@ describe("SymbolDBService", () => {
   });
 
   // ---------------------------------------------------------------------------
+  // listSymbolsByRepository()
+  // ---------------------------------------------------------------------------
+
+  describe("listSymbolsByRepository()", () => {
+    it("returns all symbols for the repository across files and excludes other repositories", async () => {
+      const firstRepository = await repositoryService.createRepository({
+        name: "CodeAtlas",
+        path: "/tmp/codeatlas",
+      });
+      const secondRepository = await repositoryService.createRepository({
+        name: "OtherRepo",
+        path: "/tmp/other-repo",
+      });
+
+      const firstFileId = await createFile(
+        ctx,
+        firstRepository.id,
+        "src/db/services/repository.ts",
+      );
+      const secondFileId = await createFile(
+        ctx,
+        firstRepository.id,
+        "src/server/app.ts",
+        "file-hash-2",
+      );
+      const otherRepositoryFileId = await createFile(
+        ctx,
+        secondRepository.id,
+        "src/index.ts",
+        "file-hash-3",
+      );
+
+      await service.createSymbol({
+        repositoryId: firstRepository.id,
+        symbol: "RepositoryDBService",
+        fileId: firstFileId,
+        hash: "symbol-hash-1",
+        type: "class",
+        visibility: "public",
+      });
+      await service.createSymbol({
+        repositoryId: firstRepository.id,
+        symbol: "createApp",
+        fileId: secondFileId,
+        hash: "symbol-hash-2",
+        type: "function",
+        visibility: "public",
+      });
+      await service.createSymbol({
+        repositoryId: secondRepository.id,
+        symbol: "bootstrap",
+        fileId: otherRepositoryFileId,
+        hash: "symbol-hash-3",
+        type: "function",
+        visibility: "public",
+      });
+
+      const listed = await service.listSymbolsByRepository(firstRepository.id);
+
+      expect(listed).toHaveLength(2);
+      expect(listed.map((symbol) => symbol.symbol).sort()).toEqual([
+        "RepositoryDBService",
+        "createApp",
+      ]);
+      expect(
+        listed.every((symbol) => symbol.repositoryId === firstRepository.id),
+      ).toBe(true);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // upsertSymbol()
   // ---------------------------------------------------------------------------
 
