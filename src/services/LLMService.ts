@@ -1,22 +1,17 @@
 import { z, type ZodTypeAny } from "zod";
+import type { LLMProviderPort } from "./llm/LLMProvider.js";
 import {
-  Ollama,
-  type ChatRequest,
-  type ChatResponse,
-  type Message,
-} from "ollama";
-
-interface OllamaClientLike {
-  chat(request: ChatRequest & { stream: false }): Promise<ChatResponse>;
-}
+  OllamaProvider,
+  type OllamaProviderConfig,
+} from "./llm/OllamaProvider.js";
+import {
+  OpenAICompatibleProvider,
+  type OpenAICompatibleProviderConfig,
+} from "./llm/OpenAICompatibleProvider.js";
 
 export interface LLMServiceConfig {
   model: string;
-  baseUrl: string;
-}
-
-interface LLMServiceDeps {
-  createOllamaClient?: (baseUrl: string) => OllamaClientLike;
+  provider: LLMProviderPort;
 }
 
 export interface LLMServicePort {
@@ -57,20 +52,15 @@ export class LLMService implements LLMServicePort {
   private readonly config: {
     model: string;
     systemPrompt: string;
+    provider: LLMProviderPort;
   };
-  private readonly ollamaClient: OllamaClientLike;
 
-  constructor(config: LLMServiceConfig, deps: LLMServiceDeps = {}) {
-    const baseUrl = config.baseUrl;
-    const createOllamaClient =
-      deps.createOllamaClient ?? ((host) => new Ollama({ host }));
-
+  constructor(config: LLMServiceConfig) {
     this.config = {
       model: config.model,
       systemPrompt: SYSTEM_PROMPT,
+      provider: config.provider,
     };
-
-    this.ollamaClient = createOllamaClient(baseUrl);
   }
 
   async promptForStructuredJson<TSchema extends ZodTypeAny>(
@@ -83,34 +73,12 @@ export class LLMService implements LLMServicePort {
       "Return a single JSON object response.",
     ].join("\n\n");
 
-    const messages: Message[] = [
-      {
-        role: "system",
-        content: this.config.systemPrompt,
-      },
-      {
-        role: "user",
-        content: messageContent,
-      },
-    ];
-
-    const response = await this.ollamaClient.chat({
+    const content = await this.config.provider.generate({
       model,
-      messages,
-      stream: false,
-      format: "json",
-      options: {
-        temperature: INTERNAL_TEMPERATURE,
-      },
+      systemPrompt: this.config.systemPrompt,
+      userPrompt: messageContent,
+      temperature: INTERNAL_TEMPERATURE,
     });
-
-    const content = response.message?.content;
-
-    if (!content) {
-      throw new LLMServiceResponseFormatError(
-        "Ollama response did not include message content",
-      );
-    }
 
     const parsed = this.parseJson(content);
     const validated = schema.safeParse(parsed);
@@ -135,3 +103,31 @@ export class LLMService implements LLMServicePort {
 
 export const createLLMService = (config: LLMServiceConfig): LLMService =>
   new LLMService(config);
+
+export interface OllamaLLMServiceConfig {
+  model: string;
+  baseUrl: string;
+}
+
+export const createOllamaLLMService = (
+  config: OllamaLLMServiceConfig,
+): LLMService =>
+  new LLMService({
+    model: config.model,
+    provider: new OllamaProvider({ baseUrl: config.baseUrl }),
+  });
+
+export interface OpenAICompatibleLLMServiceConfig {
+  model: string;
+  apiKey: string;
+}
+
+export const createOpenAICompatibleLLMService = (
+  config: OpenAICompatibleLLMServiceConfig,
+): LLMService =>
+  new LLMService({
+    model: config.model,
+    provider: new OpenAICompatibleProvider({
+      apiKey: config.apiKey,
+    }),
+  });
