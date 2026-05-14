@@ -4,6 +4,7 @@ import type { SymbolDBService } from "../../db/services/symbol.js";
 export type MockSymbolDBService = SymbolDBService & {
   listSymbolsByRepositoryFile: ReturnType<typeof vi.fn>;
   removeSymbol: ReturnType<typeof vi.fn>;
+  upsertSymbol: ReturnType<typeof vi.fn>;
 };
 
 export function createMockSymbolDBService(
@@ -12,6 +13,7 @@ export function createMockSymbolDBService(
   return {
     listSymbolsByRepositoryFile: vi.fn(),
     removeSymbol: vi.fn(),
+    upsertSymbol: vi.fn(),
     ...overrides,
   } as MockSymbolDBService;
 }

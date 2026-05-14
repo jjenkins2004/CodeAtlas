@@ -8,3 +8,7 @@ export interface LLMProviderRequest {
 export interface LLMProviderPort {
   generate(request: LLMProviderRequest): Promise<string>;
 }
+
+export interface EmbeddingProviderPort {
+  embed(text: string, model: string): Promise<number[]>;
+}

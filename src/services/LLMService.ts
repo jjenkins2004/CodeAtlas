@@ -1,13 +1,7 @@
 import { z, type ZodTypeAny } from "zod";
 import type { LLMProviderPort } from "./llm/LLMProvider.js";
-import {
-  OllamaProvider,
-  type OllamaProviderConfig,
-} from "./llm/OllamaProvider.js";
-import {
-  OpenAICompatibleProvider,
-  type OpenAICompatibleProviderConfig,
-} from "./llm/OpenAICompatibleProvider.js";
+import { OllamaProvider } from "./llm/OllamaProvider.js";
+import { OpenAICompatibleProvider } from "./llm/OpenAICompatibleProvider.js";
 
 export interface LLMServiceConfig {
   model: string;
@@ -15,10 +9,20 @@ export interface LLMServiceConfig {
 }
 
 export interface LLMServicePort {
+  isConfigured(): boolean;
   promptForStructuredJson<TSchema extends ZodTypeAny>(
     prompt: string,
     schema: TSchema,
   ): Promise<z.infer<TSchema>>;
+}
+
+export class LLMServiceNotConfiguredError extends Error {
+  constructor() {
+    super(
+      "LLMService has no provider configured. Call llmService.configure() before use.",
+    );
+    this.name = "LLMServiceNotConfiguredError";
+  }
 }
 
 export class LLMServiceResponseFormatError extends Error {
@@ -48,34 +52,49 @@ const SYSTEM_PROMPT = [
 
 const INTERNAL_TEMPERATURE = 0.1;
 
-export class LLMService implements LLMServicePort {
-  private readonly config: {
-    model: string;
-    systemPrompt: string;
-    provider: LLMProviderPort;
-  };
+type ResolvedConfig = {
+  model: string;
+  systemPrompt: string;
+  provider: LLMProviderPort;
+};
 
-  constructor(config: LLMServiceConfig) {
-    this.config = {
+export class LLMService implements LLMServicePort {
+  private currentConfig: ResolvedConfig | null = null;
+
+  configure(config: LLMServiceConfig): void {
+    this.currentConfig = {
       model: config.model,
       systemPrompt: SYSTEM_PROMPT,
       provider: config.provider,
     };
   }
 
+  isConfigured(): boolean {
+    return this.currentConfig !== null;
+  }
+
+  private requireConfig(): ResolvedConfig {
+    if (!this.currentConfig) {
+      throw new LLMServiceNotConfiguredError();
+    }
+
+    return this.currentConfig;
+  }
+
   async promptForStructuredJson<TSchema extends ZodTypeAny>(
     prompt: string,
     schema: TSchema,
   ): Promise<z.infer<TSchema>> {
-    const model = this.config.model;
+    const config = this.requireConfig();
+
     const messageContent = [
       prompt,
       "Return a single JSON object response.",
     ].join("\n\n");
 
-    const content = await this.config.provider.generate({
-      model,
-      systemPrompt: this.config.systemPrompt,
+    const content = await config.provider.generate({
+      model: config.model,
+      systemPrompt: config.systemPrompt,
       userPrompt: messageContent,
       temperature: INTERNAL_TEMPERATURE,
     });
@@ -101,8 +120,8 @@ export class LLMService implements LLMServicePort {
   }
 }
 
-export const createLLMService = (config: LLMServiceConfig): LLMService =>
-  new LLMService(config);
+/** Singleton LLMService instance. Call `llmService.configure()` before use. */
+export const llmService = new LLMService();
 
 export interface OllamaLLMServiceConfig {
   model: string;
@@ -111,11 +130,14 @@ export interface OllamaLLMServiceConfig {
 
 export const createOllamaLLMService = (
   config: OllamaLLMServiceConfig,
-): LLMService =>
-  new LLMService({
+): LLMService => {
+  const service = new LLMService();
+  service.configure({
     model: config.model,
     provider: new OllamaProvider({ baseUrl: config.baseUrl }),
   });
+  return service;
+};
 
 export interface OpenAICompatibleLLMServiceConfig {
   model: string;
@@ -124,10 +146,11 @@ export interface OpenAICompatibleLLMServiceConfig {
 
 export const createOpenAICompatibleLLMService = (
   config: OpenAICompatibleLLMServiceConfig,
-): LLMService =>
-  new LLMService({
+): LLMService => {
+  const service = new LLMService();
+  service.configure({
     model: config.model,
-    provider: new OpenAICompatibleProvider({
-      apiKey: config.apiKey,
-    }),
+    provider: new OpenAICompatibleProvider({ apiKey: config.apiKey }),
   });
+  return service;
+};

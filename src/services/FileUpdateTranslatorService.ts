@@ -24,6 +24,7 @@ import {
 export type FileUpdateTranslatorCallback = (
   symbolCoreFields: SymbolCoreFields,
   symbolSemanticFields: SymbolSemanticFields,
+  body: string,
 ) => void;
 
 export type FileUpdateTranslatorDeleteCallback = (symbol: Symbol) => void;
@@ -188,7 +189,11 @@ export class FileUpdateTranslatorService implements FileUpdateTranslatorServiceP
         };
 
     this.config.debounceService.debounce(symbolCoreFields.symbol, 20000, () => {
-      this.onSymbolShouldBeReindexed?.(symbolCoreFields, symbolSemanticFields);
+      this.onSymbolShouldBeReindexed?.(
+        symbolCoreFields,
+        symbolSemanticFields,
+        extractedSymbol.body,
+      );
     });
   }
 }

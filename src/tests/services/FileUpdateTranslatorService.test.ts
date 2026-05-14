@@ -233,6 +233,7 @@ describe("FileUpdateTranslatorService", () => {
       expect(onReindex).toHaveBeenCalledWith(
         makeSymbolCoreFields(),
         makeSymbolSemanticFields(),
+        "func run() { return 1 }",
       );
     });
 
@@ -319,6 +320,7 @@ describe("FileUpdateTranslatorService", () => {
       expect(onReindex).toHaveBeenCalledWith(
         makeSymbolCoreFields(),
         makeSymbolSemanticFields(),
+        "func run() { return 1 }",
       );
     });
   });

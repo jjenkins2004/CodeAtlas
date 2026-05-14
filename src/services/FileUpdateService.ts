@@ -183,6 +183,7 @@ export class FileUpdateService implements FileUpdateServicePort {
       (
         symbolCoreFields: SymbolCoreFields,
         symbolSemanticFields: SymbolSemanticFields,
+        body: string,
       ) => {
         void this.config.indexService.indexSymbol({
           ...symbolCoreFields,
@@ -190,6 +191,7 @@ export class FileUpdateService implements FileUpdateServicePort {
           implementation: symbolSemanticFields.implementation ?? undefined,
           tags: symbolSemanticFields.tags,
           embedding: symbolSemanticFields.embedding ?? undefined,
+          body,
         });
       },
     );

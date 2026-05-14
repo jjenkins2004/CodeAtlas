@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import {
   LLMService,
+  LLMServiceNotConfiguredError,
   LLMServiceResponseFormatError,
   LLMServiceValidationError,
 } from "../../services/LLMService.js";
@@ -11,15 +12,17 @@ import type { LLMProviderPort } from "../../services/llm/LLMProvider.js";
 // Helpers
 // ---------------------------------------------------------------------------
 
-function createServiceWithChat(
+function createConfiguredService(
   generateMock: LLMProviderPort["generate"],
 ): LLMService {
-  return new LLMService({
+  const service = new LLMService();
+  service.configure({
     model: "llama3.1:8b",
     provider: {
       generate: generateMock,
     },
   });
+  return service;
 }
 
 // ---------------------------------------------------------------------------
@@ -28,17 +31,40 @@ function createServiceWithChat(
 
 describe("LLMService", () => {
   // ---------------------------------------------------------------------------
+  // configure() / isConfigured()
+  // ---------------------------------------------------------------------------
+
+  describe("configure() / isConfigured()", () => {
+    it("reports not configured before configure() is called", () => {
+      const service = new LLMService();
+      expect(service.isConfigured()).toBe(false);
+    });
+
+    it("reports configured after configure() is called", () => {
+      const service = createConfiguredService(vi.fn());
+      expect(service.isConfigured()).toBe(true);
+    });
+
+    it("throws LLMServiceNotConfiguredError when used without configuring", async () => {
+      const service = new LLMService();
+      await expect(
+        service.promptForStructuredJson("test", z.object({ ok: z.boolean() })),
+      ).rejects.toBeInstanceOf(LLMServiceNotConfiguredError);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // promptForStructuredJson()
   // ---------------------------------------------------------------------------
 
   describe("promptForStructuredJson()", () => {
-    it("returns typed JSON when Ollama responds with valid content", async () => {
+    it("returns typed JSON when provider responds with valid content", async () => {
       const generateMock = vi
         .fn<LLMProviderPort["generate"]>()
         .mockResolvedValue(
           '{"blurb":"Summarizes a symbol","tags":["indexing","summary"]}',
         );
-      const service = createServiceWithChat(generateMock);
+      const service = createConfiguredService(generateMock);
       const schema = z.object({
         blurb: z.string(),
         tags: z.array(z.string()),
@@ -75,7 +101,7 @@ describe("LLMService", () => {
       const generateMock = vi
         .fn<LLMProviderPort["generate"]>()
         .mockRejectedValue(new Error("connection refused"));
-      const service = createServiceWithChat(generateMock);
+      const service = createConfiguredService(generateMock);
       const schema = z.object({ ok: z.boolean() });
 
       await expect(
@@ -87,7 +113,7 @@ describe("LLMService", () => {
       const generateMock = vi
         .fn<LLMProviderPort["generate"]>()
         .mockResolvedValue("not-json");
-      const service = createServiceWithChat(generateMock);
+      const service = createConfiguredService(generateMock);
       const schema = z.object({ value: z.string() });
 
       await expect(
@@ -99,7 +125,7 @@ describe("LLMService", () => {
       const generateMock = vi
         .fn<LLMProviderPort["generate"]>()
         .mockResolvedValue('```json\n{"value":"ok"}\n```');
-      const service = createServiceWithChat(generateMock);
+      const service = createConfiguredService(generateMock);
       const schema = z.object({ value: z.string() });
 
       await expect(
@@ -111,7 +137,7 @@ describe("LLMService", () => {
       const generateMock = vi
         .fn<LLMProviderPort["generate"]>()
         .mockResolvedValue('{"blurb":"Only blurb"}');
-      const service = createServiceWithChat(generateMock);
+      const service = createConfiguredService(generateMock);
       const schema = z.object({
         blurb: z.string(),
         tags: z.array(z.string()),
@@ -126,7 +152,7 @@ describe("LLMService", () => {
       const generateMock = vi
         .fn<LLMProviderPort["generate"]>()
         .mockResolvedValue("");
-      const service = createServiceWithChat(generateMock);
+      const service = createConfiguredService(generateMock);
       const schema = z.object({ value: z.string() });
 
       await expect(

@@ -1,11 +1,17 @@
-import type { LLMProviderPort, LLMProviderRequest } from "./LLMProvider.js";
+import type {
+  EmbeddingProviderPort,
+  LLMProviderPort,
+  LLMProviderRequest,
+} from "./LLMProvider.js";
 import OpenAI from "openai";
 
 export interface OpenAICompatibleProviderConfig {
   apiKey: string;
 }
 
-export class OpenAICompatibleProvider implements LLMProviderPort {
+export class OpenAICompatibleProvider
+  implements LLMProviderPort, EmbeddingProviderPort
+{
   private readonly client: OpenAI;
 
   constructor(config: OpenAICompatibleProviderConfig) {
@@ -40,5 +46,22 @@ export class OpenAICompatibleProvider implements LLMProviderPort {
     }
 
     return content;
+  }
+
+  async embed(text: string, model: string): Promise<number[]> {
+    const response = await this.client.embeddings.create({
+      model,
+      input: text,
+    });
+
+    const embedding = response.data[0]?.embedding;
+
+    if (!embedding) {
+      throw new Error(
+        "OpenAI-compatible embed response did not include embeddings",
+      );
+    }
+
+    return embedding;
   }
 }

@@ -1,11 +1,15 @@
 import { Ollama, type Message } from "ollama";
-import type { LLMProviderPort, LLMProviderRequest } from "./LLMProvider.js";
+import type {
+  EmbeddingProviderPort,
+  LLMProviderPort,
+  LLMProviderRequest,
+} from "./LLMProvider.js";
 
 export interface OllamaProviderConfig {
   baseUrl: string;
 }
 
-export class OllamaProvider implements LLMProviderPort {
+export class OllamaProvider implements LLMProviderPort, EmbeddingProviderPort {
   private readonly ollamaClient: Ollama;
 
   constructor(config: OllamaProviderConfig) {
@@ -41,5 +45,16 @@ export class OllamaProvider implements LLMProviderPort {
     }
 
     return content;
+  }
+
+  async embed(text: string, model: string): Promise<number[]> {
+    const response = await this.ollamaClient.embed({ model, input: text });
+    const embedding = response.embeddings[0];
+
+    if (!embedding) {
+      throw new Error("Ollama embed response did not include embeddings");
+    }
+
+    return embedding;
   }
 }
