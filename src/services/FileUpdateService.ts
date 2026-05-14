@@ -41,6 +41,12 @@ export interface FileUpdateServiceConfig {
   indexService?: IndexerServicePort;
   fileUpdateTranslatorServiceType?: FileUpdateTranslatorServiceConstructor;
   repositoryPathService?: RepositoryPathServicePort;
+  /** Debounce window in ms applied per file path before processing. Defaults to 5 000. */
+  debounceMs?: number;
+  /** Debounce window in ms applied per symbol name inside the translator. Defaults to 20 000. */
+  symbolDebounceMs?: number;
+  /** Debounce service instance used inside each translator. Defaults to the shared singleton. */
+  translatorDebounceService?: DebounceServicePort;
 }
 
 const defaultFileUpdateServiceConfig: Required<FileUpdateServiceConfig> = {
@@ -50,6 +56,9 @@ const defaultFileUpdateServiceConfig: Required<FileUpdateServiceConfig> = {
   indexService: indexerService,
   fileUpdateTranslatorServiceType: FileUpdateTranslatorService,
   repositoryPathService,
+  debounceMs: 5000,
+  symbolDebounceMs: 20000,
+  translatorDebounceService: debounceService,
 };
 
 /**
@@ -60,8 +69,6 @@ const defaultFileUpdateServiceConfig: Required<FileUpdateServiceConfig> = {
  */
 export class FileUpdateService implements FileUpdateServicePort {
   private readonly config: Required<FileUpdateServiceConfig>;
-
-  private readonly debounceTimeMs = 5000;
 
   private readonly fileUpdateTranslatorServices = new Map<
     string,
@@ -83,7 +90,7 @@ export class FileUpdateService implements FileUpdateServicePort {
   ): void {
     this.config.debounceService.debounce(
       `${repositoryId}:${repositoryRelativePath}`,
-      this.debounceTimeMs,
+      this.config.debounceMs,
       async () => {
         await this.processFileUpdate(
           repositoryId,
@@ -164,6 +171,8 @@ export class FileUpdateService implements FileUpdateServicePort {
     const fileUpdateTranslatorService =
       new this.config.fileUpdateTranslatorServiceType({
         repositoryId,
+        symbolDebounceMs: this.config.symbolDebounceMs,
+        debounceService: this.config.translatorDebounceService,
       });
 
     fileUpdateTranslatorService.registerOnSymbolShouldBeReindexed(

@@ -37,6 +37,8 @@ export interface FileUpdateTranslatorServiceConfig {
   symbolDBService?: SymbolDBService;
   repositoryPathService?: RepositoryPathServicePort;
   treeSitterService?: TreeSitterService;
+  /** Debounce window in ms applied per symbol before triggering reindex. Defaults to 20 000. */
+  symbolDebounceMs?: number;
 }
 
 export type FileUpdateTranslatorServiceConstructor = new (
@@ -52,6 +54,7 @@ const defaultFileUpdateTranslatorServiceConfig: Required<
   symbolDBService,
   repositoryPathService,
   treeSitterService,
+  symbolDebounceMs: 20000,
 };
 
 /** Translates raw file updates into symbol actions like reindexing or deletion. */
@@ -182,12 +185,16 @@ export class FileUpdateTranslatorService implements FileUpdateTranslatorServiceP
           embedding: null,
         };
 
-    this.config.debounceService.debounce(symbolCoreFields.symbol, 20000, () => {
-      this.onSymbolShouldBeReindexed?.(
-        symbolCoreFields,
-        symbolSemanticFields,
-        extractedSymbol.body,
-      );
-    });
+    this.config.debounceService.debounce(
+      symbolCoreFields.symbol,
+      this.config.symbolDebounceMs,
+      () => {
+        this.onSymbolShouldBeReindexed?.(
+          symbolCoreFields,
+          symbolSemanticFields,
+          extractedSymbol.body,
+        );
+      },
+    );
   }
 }
