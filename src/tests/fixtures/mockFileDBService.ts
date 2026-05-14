@@ -6,6 +6,7 @@ export type MockFileDBService = FileDBServicePort & {
   getFile: ReturnType<typeof vi.fn>;
   getFileByRepositoryAndPath: ReturnType<typeof vi.fn>;
   createFile: ReturnType<typeof vi.fn>;
+  upsertFile: ReturnType<typeof vi.fn>;
   updateFile: ReturnType<typeof vi.fn>;
   removeFile: ReturnType<typeof vi.fn>;
 };
@@ -18,6 +19,7 @@ export function createMockFileDBService(
     getFile: vi.fn(),
     getFileByRepositoryAndPath: vi.fn(),
     createFile: vi.fn(),
+    upsertFile: vi.fn(),
     updateFile: vi.fn(),
     removeFile: vi.fn(),
     ...overrides,

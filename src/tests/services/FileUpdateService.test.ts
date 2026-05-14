@@ -182,21 +182,17 @@ describe("FileUpdateService", () => {
       },
     );
 
-    expect(indexService.indexSymbol).toHaveBeenCalledWith({
-      repositoryId: "repo-1",
-      symbol: "Example.run",
-      fileId: "file-1",
-      hash: "symbol-hash-1",
-      type: "function",
-      visibility: "public",
-      blurb: null,
-      implementation: null,
-      tags: [],
-      embedding: null,
-      id: "file-1:Example.run",
-      createdAt: expect.any(Date),
-      updatedAt: expect.any(Date),
-    });
+    expect(indexService.indexSymbol).toHaveBeenCalledWith(
+      expect.objectContaining({
+        repositoryId: "repo-1",
+        symbol: "Example.run",
+        fileId: "file-1",
+        hash: "symbol-hash-1",
+        type: "function",
+        visibility: "public",
+        tags: [],
+      }),
+    );
   });
 
   it("updates a tracked file after debounce", async () => {

@@ -17,7 +17,7 @@ import {
 } from "../../services/Repository.js";
 import { createMockFileUpdateService } from "../fixtures/mockFileUpdateService.js";
 import { createMockRepoDBService } from "../fixtures/mockRepoDBService.js";
-import { createMockRepositoryIndexerService } from "../fixtures/mockRepositoryIndexerService.js";
+import { createMockRepositoryInitializerService } from "../fixtures/mockRepositoryInitializerService.js";
 import { createMockWatcher } from "../fixtures/mockWatcher.js";
 
 // ---------------------------------------------------------------------------
@@ -28,8 +28,8 @@ type WatcherMock = ReturnType<typeof createMockWatcher>;
 
 type ServiceDeps = {
   repositoryDBService: ReturnType<typeof createMockRepoDBService>;
-  repositoryIndexerService: ReturnType<
-    typeof createMockRepositoryIndexerService
+  repositoryInitializerService: ReturnType<
+    typeof createMockRepositoryInitializerService
   >;
   fileUpdateService: ReturnType<typeof createMockFileUpdateService>;
   watcher: WatcherMock;
@@ -57,12 +57,12 @@ function makeServiceDeps(
   config: Partial<RepositoryOrchestratorServiceConfig> = {},
 ): ServiceDeps {
   const repositoryDBService = createMockRepoDBService();
-  const repositoryIndexerService = createMockRepositoryIndexerService();
+  const repositoryInitializerService = createMockRepositoryInitializerService();
   const fileUpdateService = createMockFileUpdateService();
   const watcher = createMockWatcher();
   const service = new RepositoryOrchestratorService({
     repositoryDBService,
-    indexService: repositoryIndexerService,
+    repositoryInitializerService,
     fileUpdateService,
     watcher,
     ...config,
@@ -70,7 +70,7 @@ function makeServiceDeps(
 
   return {
     repositoryDBService,
-    repositoryIndexerService,
+    repositoryInitializerService,
     fileUpdateService,
     watcher,
     service,
@@ -132,7 +132,7 @@ describe("RepositoryOrchestratorService", () => {
         .mockReturnValue(ignoreFilter as never);
       const {
         repositoryDBService,
-        repositoryIndexerService,
+        repositoryInitializerService,
         fileUpdateService,
         watcher,
         service,
@@ -140,7 +140,9 @@ describe("RepositoryOrchestratorService", () => {
 
       tempPaths.push(tempDirectoryPath);
       repositoryDBService.createRepository.mockResolvedValue(createdRepository);
-      repositoryIndexerService.indexRepository.mockResolvedValue(undefined);
+      repositoryInitializerService.initializeRepository.mockResolvedValue(
+        undefined,
+      );
       watcher.start.mockResolvedValue(undefined);
 
       const trackedRepository = await service.trackRepository(
@@ -161,9 +163,9 @@ describe("RepositoryOrchestratorService", () => {
         onUpdate: expect.any(Function),
         onDeletion: expect.any(Function),
       });
-      expect(repositoryIndexerService.indexRepository).toHaveBeenCalledWith(
-        "repo-10",
-      );
+      expect(
+        repositoryInitializerService.initializeRepository,
+      ).toHaveBeenCalledWith("repo-10");
       expect(fileUpdateService.handleFileUpdate).not.toHaveBeenCalled();
       expect(repositoryDBService.removeRepository).not.toHaveBeenCalled();
     });
@@ -176,7 +178,7 @@ describe("RepositoryOrchestratorService", () => {
       });
       const {
         repositoryDBService,
-        repositoryIndexerService,
+        repositoryInitializerService,
         fileUpdateService,
         watcher,
         service,
@@ -184,7 +186,9 @@ describe("RepositoryOrchestratorService", () => {
 
       tempPaths.push(tempDirectoryPath);
       repositoryDBService.createRepository.mockResolvedValue(createdRepository);
-      repositoryIndexerService.indexRepository.mockResolvedValue(undefined);
+      repositoryInitializerService.initializeRepository.mockResolvedValue(
+        undefined,
+      );
       watcher.start.mockResolvedValue(undefined);
 
       await service.trackRepository(makeRepositoryInput(tempDirectoryPath));
@@ -227,7 +231,7 @@ describe("RepositoryOrchestratorService", () => {
       const missingPath = path.join(os.tmpdir(), `missing-${Date.now()}`);
       const {
         repositoryDBService,
-        repositoryIndexerService,
+        repositoryInitializerService,
         watcher,
         service,
       } = makeServiceDeps();
@@ -239,14 +243,16 @@ describe("RepositoryOrchestratorService", () => {
       );
       expect(repositoryDBService.createRepository).not.toHaveBeenCalled();
       expect(watcher.start).not.toHaveBeenCalled();
-      expect(repositoryIndexerService.indexRepository).not.toHaveBeenCalled();
+      expect(
+        repositoryInitializerService.initializeRepository,
+      ).not.toHaveBeenCalled();
     });
 
     it("throws RepositoryPathNotDirectoryError when the path is a file", async () => {
       const filePath = await makeTempFile();
       const {
         repositoryDBService,
-        repositoryIndexerService,
+        repositoryInitializerService,
         watcher,
         service,
       } = makeServiceDeps();
@@ -260,7 +266,9 @@ describe("RepositoryOrchestratorService", () => {
       );
       expect(repositoryDBService.createRepository).not.toHaveBeenCalled();
       expect(watcher.start).not.toHaveBeenCalled();
-      expect(repositoryIndexerService.indexRepository).not.toHaveBeenCalled();
+      expect(
+        repositoryInitializerService.initializeRepository,
+      ).not.toHaveBeenCalled();
     });
 
     it("rolls back and wraps watcher start failures", async () => {
@@ -272,7 +280,7 @@ describe("RepositoryOrchestratorService", () => {
       const watcherError = new Error("watcher failed");
       const {
         repositoryDBService,
-        repositoryIndexerService,
+        repositoryInitializerService,
         fileUpdateService,
         watcher,
         service,
@@ -297,7 +305,9 @@ describe("RepositoryOrchestratorService", () => {
       expect(repositoryDBService.removeRepository).toHaveBeenCalledWith(
         "repo-13",
       );
-      expect(repositoryIndexerService.indexRepository).not.toHaveBeenCalled();
+      expect(
+        repositoryInitializerService.initializeRepository,
+      ).not.toHaveBeenCalled();
     });
   });
 

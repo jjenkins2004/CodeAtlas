@@ -20,6 +20,7 @@ export interface FileDBServicePort {
     repositoryRelativePath: string,
   ): Promise<File | null>;
   createFile(input: CreateFileInput): Promise<File>;
+  upsertFile(input: CreateFileInput): Promise<File>;
   updateFile(id: string, input: UpdateFileInput): Promise<File | null>;
   removeFile(id: string): Promise<boolean>;
 }
@@ -91,6 +92,28 @@ export class FileDBService extends BaseDBService implements FileDBServicePort {
 
         throw error;
       }
+    });
+  }
+
+  async upsertFile(input: CreateFileInput): Promise<File> {
+    return this.executeQuery("upsertFile", async () => {
+      const [upserted] = await this.db
+        .insert(files)
+        .values({
+          repositoryId: input.repositoryId,
+          path: input.path,
+          hash: input.hash,
+        })
+        .onConflictDoUpdate({
+          target: [files.repositoryId, files.path],
+          set: {
+            hash: input.hash,
+            updatedAt: sql`now()`,
+          },
+        })
+        .returning();
+
+      return upserted;
     });
   }
 

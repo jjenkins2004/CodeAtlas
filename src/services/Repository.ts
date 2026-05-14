@@ -14,9 +14,9 @@ import {
 } from "../db/services/repository.js";
 import { IgnoreFilter } from "./util/IgnoreFilter.js";
 import {
-  indexerService as defaultIndexerService,
-  type IndexerServicePort,
-} from "./IndexerService.js";
+  repositoryInitializerService as defaultRepositoryInitializerService,
+  type RepositoryInitializerServicePort,
+} from "./RepositoryInitializerService.js";
 import {
   fileUpdateService as defaultFileUpdateService,
   type FileUpdateServicePort,
@@ -25,7 +25,7 @@ import { Watcher, type WatcherPort } from "./Watcher.js";
 
 export interface RepositoryOrchestratorServiceConfig {
   repositoryDBService?: RepositoryDBServicePort;
-  indexService?: IndexerServicePort;
+  repositoryInitializerService?: RepositoryInitializerServicePort;
   fileUpdateService?: FileUpdateServicePort;
   watcher?: WatcherPort;
 }
@@ -33,7 +33,7 @@ export interface RepositoryOrchestratorServiceConfig {
 const defaultRepositoryOrchestratorServiceConfig: Required<RepositoryOrchestratorServiceConfig> =
   {
     repositoryDBService: defaultRepositoryDBService,
-    indexService: defaultIndexerService,
+    repositoryInitializerService: defaultRepositoryInitializerService,
     fileUpdateService: defaultFileUpdateService,
     watcher: new Watcher(),
   };
@@ -73,7 +73,9 @@ export class RepositoryOrchestratorService {
     );
 
     await this.runTrackStep(createdRepository.id, () =>
-      this.config.indexService.indexRepository(createdRepository.id),
+      this.config.repositoryInitializerService.initializeRepository(
+        createdRepository.id,
+      ),
     );
 
     return createdRepository;

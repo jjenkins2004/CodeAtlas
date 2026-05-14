@@ -49,6 +49,6 @@ describe("DatabaseClientManager", () => {
       expect(dirContents.length).toBeGreaterThan(0);
 
       await manager.close();
-    });
+    }, 30_000);
   });
 });

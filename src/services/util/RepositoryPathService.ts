@@ -1,9 +1,11 @@
+import fs from "fs/promises";
 import path from "path";
 import { RepositoryNotFoundError } from "../../models/Repository.js";
 import {
   repositoryDBService as defaultRepositoryDBService,
   type RepositoryDBServicePort,
 } from "../../db/services/repository.js";
+import { IgnoreFilter } from "./IgnoreFilter.js";
 
 export interface RepositoryPathServicePort {
   toRepositoryRelativePath(
@@ -20,6 +22,12 @@ export interface RepositoryPathServicePort {
     repositoryId: string,
     repositoryRelativePath: string,
   ): Promise<string>;
+
+  /**
+   * Recursively walks a directory and returns all file paths relative to
+   * `dirPath`.
+   */
+  walkDirectory(dirPath: string): Promise<string[]>;
 }
 
 export type RepositoryPathServiceConstructor = new (
@@ -58,6 +66,34 @@ export class RepositoryPathService implements RepositoryPathServicePort {
 
     return this.toRepositoryFullPath(repository.path, repositoryRelativePath);
   }
+
+  async walkDirectory(dirPath: string): Promise<string[]> {
+    const results: string[] = [];
+    const ignoreFilter = IgnoreFilter.createFilter(dirPath);
+
+    const walk = async (currentPath: string): Promise<void> => {
+      const entries = await fs.readdir(currentPath, { withFileTypes: true });
+
+      for (const entry of entries) {
+        const fullPath = path.join(currentPath, entry.name);
+        const relativePath = path.relative(dirPath, fullPath);
+
+        if (ignoreFilter.ignores(relativePath)) {
+          continue;
+        }
+
+        if (entry.isDirectory()) {
+          await walk(fullPath);
+        } else if (entry.isFile()) {
+          results.push(relativePath);
+        }
+      }
+    };
+
+    await walk(dirPath);
+
+    return results;
+  }
 }
 
 export const repositoryPathService = new RepositoryPathService();
@@ -85,3 +121,6 @@ export const toRepositoryFullPathByRepositoryId = (
     repositoryId,
     repositoryRelativePath,
   );
+
+export const walkDirectory = (dirPath: string): Promise<string[]> =>
+  repositoryPathService.walkDirectory(dirPath);

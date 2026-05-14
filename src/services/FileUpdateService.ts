@@ -186,10 +186,10 @@ export class FileUpdateService implements FileUpdateServicePort {
       ) => {
         void this.config.indexService.indexSymbol({
           ...symbolCoreFields,
-          ...symbolSemanticFields,
-          id: `${symbolCoreFields.fileId}:${symbolCoreFields.symbol}`,
-          createdAt: new Date(),
-          updatedAt: new Date(),
+          blurb: symbolSemanticFields.blurb ?? undefined,
+          implementation: symbolSemanticFields.implementation ?? undefined,
+          tags: symbolSemanticFields.tags,
+          embedding: symbolSemanticFields.embedding ?? undefined,
         });
       },
     );

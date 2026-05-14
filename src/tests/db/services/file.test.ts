@@ -214,4 +214,78 @@ describe("FileDBService", () => {
       expect(removed).toBe(false);
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // upsertFile()
+  // ---------------------------------------------------------------------------
+
+  describe("upsertFile()", () => {
+    it("creates the file when it does not exist", async () => {
+      const repository = await repositoryService.createRepository({
+        name: "CodeAtlas",
+        path: "/tmp/codeatlas",
+      });
+
+      const upserted = await service.upsertFile({
+        repositoryId: repository.id,
+        path: "src/index.ts",
+        hash: "file-hash-1",
+      });
+
+      expect(upserted.id).toBeDefined();
+      expect(upserted.repositoryId).toBe(repository.id);
+      expect(upserted.path).toBe("src/index.ts");
+      expect(upserted.hash).toBe("file-hash-1");
+
+      const rows = await ctx.db.select().from(files);
+      expect(rows).toHaveLength(1);
+    });
+
+    it("updates the hash when the repository and path already exist", async () => {
+      const repository = await repositoryService.createRepository({
+        name: "CodeAtlas",
+        path: "/tmp/codeatlas",
+      });
+
+      const created = await service.createFile({
+        repositoryId: repository.id,
+        path: "src/index.ts",
+        hash: "file-hash-1",
+      });
+
+      const upserted = await service.upsertFile({
+        repositoryId: repository.id,
+        path: "src/index.ts",
+        hash: "file-hash-2",
+      });
+
+      expect(upserted.id).toBe(created.id);
+      expect(upserted.hash).toBe("file-hash-2");
+
+      const rows = await ctx.db.select().from(files);
+      expect(rows).toHaveLength(1);
+    });
+
+    it("does not affect other files in the same repository", async () => {
+      const repository = await repositoryService.createRepository({
+        name: "CodeAtlas",
+        path: "/tmp/codeatlas",
+      });
+
+      await service.createFile({
+        repositoryId: repository.id,
+        path: "src/index.ts",
+        hash: "file-hash-1",
+      });
+
+      await service.upsertFile({
+        repositoryId: repository.id,
+        path: "src/other.ts",
+        hash: "file-hash-2",
+      });
+
+      const rows = await ctx.db.select().from(files);
+      expect(rows).toHaveLength(2);
+    });
+  });
 });
