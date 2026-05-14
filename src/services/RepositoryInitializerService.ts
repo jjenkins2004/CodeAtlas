@@ -138,6 +138,7 @@ export class RepositoryInitializerService implements RepositoryInitializerServic
         hash: symbolHash,
         type: extracted.type,
         visibility: extracted.visibility,
+        body: extracted.body,
       });
     }
   }
