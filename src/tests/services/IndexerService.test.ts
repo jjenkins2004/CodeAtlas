@@ -173,8 +173,9 @@ describe("IndexerService", () => {
       );
     });
 
-    it("propagates LLM errors", async () => {
-      const { service, llmService } = createService();
+    it("propagates LLM errors and does not write a partial symbol", async () => {
+      const { service, llmService, embeddingService, symbolDBService } =
+        createService();
       llmService.promptForStructuredJson.mockRejectedValue(
         new Error("LLM unavailable"),
       );
@@ -182,6 +183,29 @@ describe("IndexerService", () => {
       await expect(service.indexSymbol(makeInput())).rejects.toThrow(
         "LLM unavailable",
       );
+
+      // If semantic generation fails, indexing must stop before embedding/upsert.
+      expect(embeddingService.embed).not.toHaveBeenCalled();
+      expect(symbolDBService.upsertSymbol).not.toHaveBeenCalled();
+    });
+
+    it("propagates embedding errors and does not write a partial symbol", async () => {
+      const { service, llmService, embeddingService, symbolDBService } =
+        createService();
+      llmService.promptForStructuredJson.mockResolvedValue(
+        makeGeneratedSemantics(),
+      );
+      embeddingService.embed.mockRejectedValue(
+        new Error("embedding unavailable"),
+      );
+
+      await expect(service.indexSymbol(makeInput())).rejects.toThrow(
+        "embedding unavailable",
+      );
+
+      expect(llmService.promptForStructuredJson).toHaveBeenCalledTimes(1);
+      expect(embeddingService.embed).toHaveBeenCalledTimes(1);
+      expect(symbolDBService.upsertSymbol).not.toHaveBeenCalled();
     });
   });
 
