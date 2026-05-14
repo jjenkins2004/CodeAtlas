@@ -1,5 +1,5 @@
 {
-  "id": "e110e283-19d4-4e28-80de-a51b517c7f70",
+  "id": "6e3617cf-ed4b-417c-becc-3da93aea3798",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -114,6 +114,13 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
+        "repositories_name_unique": {
+          "name": "repositories_name_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "name"
+          ]
+        },
         "repositories_path_unique": {
           "name": "repositories_path_unique",
           "nullsNotDistinct": false,

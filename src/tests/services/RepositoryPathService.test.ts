@@ -1,14 +1,17 @@
+import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { RepositoryNotFoundError } from "../../models/Repository.js";
+import {
+  RepositoryNotFoundError,
+  RepositoryPathNotDirectoryError,
+  RepositoryPathNotFoundError,
+} from "../../models/Repository.js";
 import { createMockRepoDBService } from "../fixtures/mockRepoDBService.js";
 import { MockRepo } from "../fixtures/mockRepo.js";
 import {
   RepositoryPathService,
-  toRepositoryFullPath,
-  toRepositoryFullPathByRepositoryId,
-  toRepositoryRelativePath,
-  walkDirectory,
+  repositoryPathService,
 } from "../../services/util/RepositoryPathService.js";
 
 // ---------------------------------------------------------------------------
@@ -17,13 +20,63 @@ import {
 
 describe("RepositoryPathService", () => {
   let repo: MockRepo;
+  let tempPaths: string[];
 
   beforeEach(() => {
     repo = new MockRepo();
+    tempPaths = [];
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     repo.cleanup();
+    await Promise.all(
+      tempPaths.map(async (tempPath) => {
+        await fs.rm(tempPath, { recursive: true, force: true });
+      }),
+    );
+  });
+
+  // ---------------------------------------------------------------------------
+  // validateAndNormalizeRepositoryPath()
+  // ---------------------------------------------------------------------------
+
+  describe("validateAndNormalizeRepositoryPath()", () => {
+    it("returns a normalized absolute path for an existing directory", async () => {
+      const service = new RepositoryPathService();
+      const relativePath = path.relative(process.cwd(), repo.rootPath);
+
+      await expect(
+        service.validateAndNormalizeRepositoryPath(relativePath),
+      ).resolves.toBe(path.resolve(relativePath));
+    });
+
+    it("throws RepositoryPathNotFoundError when the path does not exist", async () => {
+      const service = new RepositoryPathService();
+      const missingPath = path.join(os.tmpdir(), `missing-${Date.now()}`);
+
+      await expect(
+        service.validateAndNormalizeRepositoryPath(missingPath),
+      ).rejects.toEqual(
+        new RepositoryPathNotFoundError(path.resolve(missingPath)),
+      );
+    });
+
+    it("throws RepositoryPathNotDirectoryError when the path is a file", async () => {
+      const service = new RepositoryPathService();
+      const tempDirectoryPath = await fs.mkdtemp(
+        path.join(os.tmpdir(), "repository-path-service-file-"),
+      );
+      const filePath = path.join(tempDirectoryPath, "repo.txt");
+
+      tempPaths.push(tempDirectoryPath);
+      await fs.writeFile(filePath, "not a directory", "utf8");
+
+      await expect(
+        service.validateAndNormalizeRepositoryPath(filePath),
+      ).rejects.toEqual(
+        new RepositoryPathNotDirectoryError(path.resolve(filePath)),
+      );
+    });
   });
 
   it("converts a full file path to a repository-relative path", () => {
@@ -72,15 +125,22 @@ describe("RepositoryPathService", () => {
     ).rejects.toEqual(new RepositoryNotFoundError("missing-repo"));
   });
 
-  it("exposes module-level helpers", async () => {
-    expect(toRepositoryRelativePath("/repo", "/repo/src/example.ts")).toBe(
-      "src/example.ts",
-    );
-    expect(toRepositoryFullPath("/repo", "src/example.ts")).toBe(
-      "/repo/src/example.ts",
-    );
-    // Confirm the export resolves — depth-tested in the walkDirectory() block
-    await expect(walkDirectory(repo.rootPath)).resolves.toBeInstanceOf(Array);
+  it("exposes the singleton service", async () => {
+    expect(
+      repositoryPathService.toRepositoryRelativePath(
+        "/repo",
+        "/repo/src/example.ts",
+      ),
+    ).toBe("src/example.ts");
+    expect(
+      repositoryPathService.toRepositoryFullPath("/repo", "src/example.ts"),
+    ).toBe("/repo/src/example.ts");
+    await expect(
+      repositoryPathService.validateAndNormalizeRepositoryPath(repo.rootPath),
+    ).resolves.toBe(path.resolve(repo.rootPath));
+    await expect(
+      repositoryPathService.walkDirectory(repo.rootPath),
+    ).resolves.toBeInstanceOf(Array);
   });
 
   // ---------------------------------------------------------------------------

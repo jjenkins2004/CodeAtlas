@@ -32,7 +32,7 @@ export const visibilityEnum = pgEnum("visibility", [...VISIBILITY_LEVELS]);
  */
 export const repositories = pgTable("repositories", {
   id: uuid("id").primaryKey().defaultRandom(),
-  name: text("name").notNull(),
+  name: text("name").notNull().unique(),
   path: text("path").notNull().unique(),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()

@@ -112,12 +112,6 @@ export class FileUpdateTranslatorService implements FileUpdateTranslatorServiceP
       return;
     }
 
-    const fileHash = await this.config.hasherService.hashFile(fullPath);
-
-    if (file.hash === fileHash) {
-      return;
-    }
-
     const symbols =
       await this.config.treeSitterService.extractSymbols(fullPath);
 

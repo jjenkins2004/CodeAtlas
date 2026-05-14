@@ -21,7 +21,7 @@ import type {
   SymbolSemanticFields,
 } from "../models/Symbol.js";
 
-export type FileUpdateOperation = "created" | "updated" | "deleted";
+export type FileUpdateOperation = "changed" | "deleted";
 
 export interface FileUpdateServicePort {
   handleFileUpdate(
@@ -111,34 +111,21 @@ export class FileUpdateService implements FileUpdateServicePort {
     );
 
     switch (operation) {
-      case "created": {
-        const fileHash = await this.config.hasherService.hashFile(fullPath);
-
-        await this.config.fileDBService.createFile({
-          repositoryId,
-          path: repositoryRelativePath,
-          hash: fileHash,
-        });
-
-        await this.getOrCreateFileUpdateTranslatorService(
-          repositoryId,
-        ).fileWasUpdated(repositoryRelativePath);
-        return;
-      }
-      case "updated": {
+      case "changed": {
         const existingFile =
           await this.config.fileDBService.getFileByRepositoryAndPath(
             repositoryId,
             repositoryRelativePath,
           );
 
-        if (!existingFile) {
+        const fileHash = await this.config.hasherService.hashFile(fullPath);
+
+        if (existingFile?.hash === fileHash) {
           return;
         }
 
-        const fileHash = await this.config.hasherService.hashFile(fullPath);
-
-        await this.config.fileDBService.updateFile(existingFile.id, {
+        await this.config.fileDBService.upsertFile({
+          repositoryId,
           path: repositoryRelativePath,
           hash: fileHash,
         });

@@ -1,6 +1,10 @@
 import fs from "fs/promises";
 import path from "path";
-import { RepositoryNotFoundError } from "../../models/Repository.js";
+import {
+  RepositoryNotFoundError,
+  RepositoryPathNotDirectoryError,
+  RepositoryPathNotFoundError,
+} from "../../models/Repository.js";
 import {
   repositoryDBService as defaultRepositoryDBService,
   type RepositoryDBServicePort,
@@ -8,6 +12,8 @@ import {
 import { IgnoreFilter } from "./IgnoreFilter.js";
 
 export interface RepositoryPathServicePort {
+  validateAndNormalizeRepositoryPath(inputPath: string): Promise<string>;
+
   toRepositoryRelativePath(
     repositoryRootPath: string,
     filePath: string,
@@ -38,6 +44,33 @@ export class RepositoryPathService implements RepositoryPathServicePort {
   constructor(
     private readonly repositoryDBService: RepositoryDBServicePort = defaultRepositoryDBService,
   ) {}
+
+  async validateAndNormalizeRepositoryPath(inputPath: string): Promise<string> {
+    const normalizedPath = path.resolve(inputPath);
+
+    let stats;
+
+    try {
+      stats = await fs.stat(normalizedPath);
+    } catch (error) {
+      if (
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        (error as NodeJS.ErrnoException).code === "ENOENT"
+      ) {
+        throw new RepositoryPathNotFoundError(normalizedPath);
+      }
+
+      throw error;
+    }
+
+    if (!stats.isDirectory()) {
+      throw new RepositoryPathNotDirectoryError(normalizedPath);
+    }
+
+    return normalizedPath;
+  }
 
   toRepositoryRelativePath(
     repositoryRootPath: string,
@@ -97,30 +130,3 @@ export class RepositoryPathService implements RepositoryPathServicePort {
 }
 
 export const repositoryPathService = new RepositoryPathService();
-
-export const toRepositoryRelativePath = (
-  repositoryRootPath: string,
-  filePath: string,
-): string =>
-  repositoryPathService.toRepositoryRelativePath(repositoryRootPath, filePath);
-
-export const toRepositoryFullPath = (
-  repositoryRootPath: string,
-  repositoryRelativePath: string,
-): string =>
-  repositoryPathService.toRepositoryFullPath(
-    repositoryRootPath,
-    repositoryRelativePath,
-  );
-
-export const toRepositoryFullPathByRepositoryId = (
-  repositoryId: string,
-  repositoryRelativePath: string,
-): Promise<string> =>
-  repositoryPathService.toRepositoryFullPathByRepositoryId(
-    repositoryId,
-    repositoryRelativePath,
-  );
-
-export const walkDirectory = (dirPath: string): Promise<string[]> =>
-  repositoryPathService.walkDirectory(dirPath);

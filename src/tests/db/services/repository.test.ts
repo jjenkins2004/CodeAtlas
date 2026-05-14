@@ -72,8 +72,56 @@ describe("RepositoryDBService", () => {
       await expect(duplicateAttempt).rejects.toMatchObject({
         message: "Repository already tracked for path: /tmp/shared",
         name: "DuplicateRepositoryError",
-        path: "/tmp/shared",
+        field: "path",
+        value: "/tmp/shared",
       });
+    });
+
+    it("throws DuplicateRepositoryError when the repository name already exists", async () => {
+      await service.createRepository({
+        name: "CodeAtlas",
+        path: "/tmp/codeatlas-1",
+      });
+
+      const duplicateAttempt = service.createRepository({
+        name: "CodeAtlas",
+        path: "/tmp/codeatlas-2",
+      });
+
+      await expect(duplicateAttempt).rejects.toBeInstanceOf(
+        DuplicateRepositoryError,
+      );
+      await expect(duplicateAttempt).rejects.toMatchObject({
+        message: "Repository already tracked for name: CodeAtlas",
+        name: "DuplicateRepositoryError",
+        field: "name",
+        value: "CodeAtlas",
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // getRepositoryByName()
+  // ---------------------------------------------------------------------------
+
+  describe("getRepositoryByName()", () => {
+    it("returns the repository when the name exists", async () => {
+      const created = await service.createRepository({
+        name: "LookupName",
+        path: "/tmp/lookup-name",
+      });
+
+      const found = await service.getRepositoryByName("LookupName");
+
+      expect(found).not.toBeNull();
+      expect(found?.id).toBe(created.id);
+      expect(found?.name).toBe("LookupName");
+    });
+
+    it("returns null when the name does not exist", async () => {
+      const found = await service.getRepositoryByName("MissingName");
+
+      expect(found).toBeNull();
     });
   });
 

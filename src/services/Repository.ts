@@ -1,8 +1,4 @@
-import fs from "fs/promises";
-import path from "path";
 import {
-  RepositoryPathNotFoundError,
-  RepositoryPathNotDirectoryError,
   RepositoryIndexingError,
   RepositoryNotFoundError,
   CreateRepositoryInput,
@@ -21,12 +17,17 @@ import {
   fileUpdateService as defaultFileUpdateService,
   type FileUpdateServicePort,
 } from "./FileUpdateService.js";
+import {
+  repositoryPathService as defaultRepositoryPathService,
+  type RepositoryPathServicePort,
+} from "./util/RepositoryPathService.js";
 import { Watcher, type WatcherPort } from "./Watcher.js";
 
 export interface RepositoryOrchestratorServiceConfig {
   repositoryDBService?: RepositoryDBServicePort;
   repositoryInitializerService?: RepositoryInitializerServicePort;
   fileUpdateService?: FileUpdateServicePort;
+  repositoryPathService?: RepositoryPathServicePort;
   watcher?: WatcherPort;
 }
 
@@ -35,8 +36,14 @@ const defaultRepositoryOrchestratorServiceConfig: Required<RepositoryOrchestrato
     repositoryDBService: defaultRepositoryDBService,
     repositoryInitializerService: defaultRepositoryInitializerService,
     fileUpdateService: defaultFileUpdateService,
+    repositoryPathService: defaultRepositoryPathService,
     watcher: new Watcher(),
   };
+
+enum RollbackStrategy {
+  RemoveRepository = "remove-repository",
+  StopWatcherOnly = "stop-watcher-only",
+}
 
 export class RepositoryOrchestratorService {
   private readonly config: Required<RepositoryOrchestratorServiceConfig>;
@@ -56,9 +63,10 @@ export class RepositoryOrchestratorService {
    * back before the error is surfaced to the caller.
    */
   async trackRepository(input: CreateRepositoryInput): Promise<Repository> {
-    const repositoryPath = await this.validateAndNormalizeRepositoryPath(
-      input.path,
-    );
+    const repositoryPath =
+      await this.config.repositoryPathService.validateAndNormalizeRepositoryPath(
+        input.path,
+      );
 
     const repositoryInput: CreateRepositoryInput = {
       name: input.name,
@@ -68,17 +76,64 @@ export class RepositoryOrchestratorService {
     const createdRepository =
       await this.config.repositoryDBService.createRepository(repositoryInput);
 
-    await this.runTrackStep(createdRepository.id, () =>
-      this.startWatcher(createdRepository),
+    await this.runTrackStep(
+      createdRepository.id,
+      () => this.startWatcher(createdRepository),
+      RollbackStrategy.RemoveRepository,
     );
 
-    await this.runTrackStep(createdRepository.id, () =>
-      this.config.repositoryInitializerService.initializeRepository(
-        createdRepository.id,
-      ),
+    await this.runTrackStep(
+      createdRepository.id,
+      () =>
+        this.config.repositoryInitializerService.initializeRepository(
+          createdRepository.id,
+        ),
+      RollbackStrategy.RemoveRepository,
     );
 
     return createdRepository;
+  }
+
+  /**
+   * Starts active tracking for an already-registered repository by name.
+   *
+   * This starts the watcher and kicks off initialization/indexing without
+   * creating or deleting any repository records.
+   */
+  async startTracking(repositoryName: string): Promise<Repository> {
+    const repository =
+      await this.config.repositoryDBService.getRepositoryByName(repositoryName);
+
+    if (!repository) {
+      throw new RepositoryNotFoundError(repositoryName);
+    }
+
+    await this.runTrackStep(
+      repository.id,
+      () => this.startWatcher(repository),
+      RollbackStrategy.StopWatcherOnly,
+    );
+
+    const repositoryRelativePaths =
+      await this.config.repositoryPathService.walkDirectory(repository.path);
+
+    for (const repositoryRelativePath of repositoryRelativePaths) {
+      try {
+        this.config.fileUpdateService.handleFileUpdate(
+          repository.id,
+          repository.path,
+          repositoryRelativePath,
+          "changed",
+        );
+      } catch (error) {
+        console.warn(
+          `Failed to queue replay update for ${repository.id}:${repositoryRelativePath}`,
+          error,
+        );
+      }
+    }
+
+    return repository;
   }
 
   /**
@@ -115,7 +170,7 @@ export class RepositoryOrchestratorService {
           repository.id,
           repository.path,
           relativePath,
-          "created",
+          "changed",
         );
       },
       onUpdate: (relativePath) => {
@@ -123,7 +178,7 @@ export class RepositoryOrchestratorService {
           repository.id,
           repository.path,
           relativePath,
-          "updated",
+          "changed",
         );
       },
       onDeletion: (relativePath) => {
@@ -135,35 +190,6 @@ export class RepositoryOrchestratorService {
         );
       },
     });
-  }
-
-  private async validateAndNormalizeRepositoryPath(
-    inputPath: string,
-  ): Promise<string> {
-    const normalizedPath = path.resolve(inputPath);
-
-    let stats;
-
-    try {
-      stats = await fs.stat(normalizedPath);
-    } catch (error) {
-      if (
-        error &&
-        typeof error === "object" &&
-        "code" in error &&
-        (error as NodeJS.ErrnoException).code === "ENOENT"
-      ) {
-        throw new RepositoryPathNotFoundError(normalizedPath);
-      }
-
-      throw error;
-    }
-
-    if (!stats.isDirectory()) {
-      throw new RepositoryPathNotDirectoryError(normalizedPath);
-    }
-
-    return normalizedPath;
   }
 
   private async safeStopWatcher(repositoryId: string): Promise<void> {
@@ -198,11 +224,16 @@ export class RepositoryOrchestratorService {
   private async runTrackStep<T>(
     repositoryId: string,
     step: () => Promise<T>,
+    rollbackStrategy: RollbackStrategy,
   ): Promise<T> {
     try {
       return await step();
     } catch (error) {
-      await this.rollbackCreatedRepository(repositoryId);
+      if (rollbackStrategy === RollbackStrategy.RemoveRepository) {
+        await this.rollbackCreatedRepository(repositoryId);
+      } else {
+        await this.safeStopWatcher(repositoryId);
+      }
 
       if (error instanceof RepositoryIndexingError) {
         throw error;
@@ -213,25 +244,4 @@ export class RepositoryOrchestratorService {
   }
 }
 
-export const repositoryService = new RepositoryOrchestratorService();
-
-/**
- * Validates and registers a repository, then begins tracking and indexing it.
- */
-export async function trackRepository(
-  input: CreateRepositoryInput,
-): Promise<Repository> {
-  return repositoryService.trackRepository(input);
-}
-
-/**
- * Stops tracking a repository and removes its repository record.
- */
-export async function untrackRepository(repositoryId: string): Promise<void> {
-  return repositoryService.untrackRepository(repositoryId);
-}
-
-export const RepositoryService = {
-  track: trackRepository,
-  untrack: untrackRepository,
-};
+export const RepositoryService = new RepositoryOrchestratorService();

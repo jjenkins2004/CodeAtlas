@@ -12,6 +12,7 @@ import { BaseDBService } from "./base.js";
 export interface RepositoryDBServicePort {
   listRepositories(): Promise<Repository[]>;
   getRepository(id: string): Promise<Repository | null>;
+  getRepositoryByName(name: string): Promise<Repository | null>;
   createRepository(input: CreateRepositoryInput): Promise<Repository>;
   updateRepository(
     id: string,
@@ -21,13 +22,38 @@ export interface RepositoryDBServicePort {
 }
 
 export class DuplicateRepositoryError extends Error {
-  readonly path: string;
+  readonly field: "name" | "path";
+  readonly value: string;
 
-  constructor(path: string) {
-    super(`Repository already tracked for path: ${path}`);
+  constructor(field: "name" | "path", value: string) {
+    super(`Repository already tracked for ${field}: ${value}`);
     this.name = "DuplicateRepositoryError";
-    this.path = path;
+    this.field = field;
+    this.value = value;
   }
+}
+
+function getUniqueConstraintName(error: unknown): string | undefined {
+  if (!error || typeof error !== "object") {
+    return undefined;
+  }
+
+  if (
+    "code" in error &&
+    (error as { code?: string }).code === "23505" &&
+    "constraint" in error
+  ) {
+    const constraint = (error as { constraint?: unknown }).constraint;
+    if (typeof constraint === "string") {
+      return constraint;
+    }
+  }
+
+  if ("cause" in error) {
+    return getUniqueConstraintName((error as { cause?: unknown }).cause);
+  }
+
+  return undefined;
 }
 
 export class RepositoryDBService
@@ -51,6 +77,17 @@ export class RepositoryDBService
     });
   }
 
+  async getRepositoryByName(name: string): Promise<Repository | null> {
+    return this.executeQuery("getRepositoryByName", async () => {
+      const [repository] = await this.db
+        .select()
+        .from(repositories)
+        .where(eq(repositories.name, name));
+
+      return repository ?? null;
+    });
+  }
+
   async createRepository(input: CreateRepositoryInput): Promise<Repository> {
     return this.executeQuery("createRepository", async () => {
       try {
@@ -65,7 +102,13 @@ export class RepositoryDBService
         return created;
       } catch (error) {
         if (isUniqueConstraintError(error)) {
-          throw new DuplicateRepositoryError(input.path);
+          const constraintName = getUniqueConstraintName(error);
+
+          if (constraintName === "repositories_name_unique") {
+            throw new DuplicateRepositoryError("name", input.name);
+          }
+
+          throw new DuplicateRepositoryError("path", input.path);
         }
 
         throw error;

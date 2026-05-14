@@ -15,6 +15,7 @@ CREATE TABLE "repositories" (
 	"name" text NOT NULL,
 	"path" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "repositories_name_unique" UNIQUE("name"),
 	CONSTRAINT "repositories_path_unique" UNIQUE("path")
 );
 --> statement-breakpoint

@@ -218,9 +218,6 @@ describe("FileUpdateTranslatorService", () => {
       expect(
         deps.fileDBService.getFileByRepositoryAndPath,
       ).toHaveBeenCalledWith(repositoryId, repositoryRelativePath);
-      expect(deps.hasherService.hashFile).toHaveBeenCalledWith(
-        repositoryFullPath,
-      );
       expect(deps.treeSitterService.extractSymbols).toHaveBeenCalledWith(
         repositoryFullPath,
       );
@@ -267,19 +264,19 @@ describe("FileUpdateTranslatorService", () => {
       expect(deps.debounceService.remove).not.toHaveBeenCalled();
     });
 
-    it("returns early when the file hash matches the database", async () => {
+    it("still evaluates symbols when file hash matches the database", async () => {
       const deps = createTranslatorService();
 
       configureFileUpdateScenario(deps, { fileHash: "file-hash-db" });
 
       await deps.service.fileWasUpdated(repositoryRelativePath);
 
-      expect(deps.treeSitterService.extractSymbols).not.toHaveBeenCalled();
+      expect(deps.treeSitterService.extractSymbols).toHaveBeenCalledWith(
+        repositoryFullPath,
+      );
       expect(
         deps.symbolDBService.listSymbolsByRepositoryFile,
-      ).not.toHaveBeenCalled();
-      expect(deps.debounceService.debounce).not.toHaveBeenCalled();
-      expect(deps.debounceService.remove).not.toHaveBeenCalled();
+      ).toHaveBeenCalledWith(repositoryId, "file-1");
     });
 
     it("removes pending work when the symbol hash matches", async () => {
