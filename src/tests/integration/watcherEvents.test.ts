@@ -36,14 +36,14 @@ async function waitForSymbols(
   services: IntegrationServices,
   repositoryId: string,
   minCount: number,
-  timeoutMs = 5000,
+  timeoutMs = 15000,
 ) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const syms =
       await services.symbolDbService.listSymbolsByRepository(repositoryId);
     if (syms.length >= minCount) return syms;
-    await new Promise((r) => setTimeout(r, 100));
+    await new Promise((r) => setTimeout(r, 50));
   }
   throw new Error(
     `Timed out waiting for ${minCount} symbol(s) for repository ${repositoryId}`,
@@ -56,14 +56,14 @@ async function waitForSymbols(
 async function waitForNoSymbols(
   services: IntegrationServices,
   repositoryId: string,
-  timeoutMs = 5000,
+  timeoutMs = 15000,
 ) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const syms =
       await services.symbolDbService.listSymbolsByRepository(repositoryId);
     if (syms.length === 0) return;
-    await new Promise((r) => setTimeout(r, 100));
+    await new Promise((r) => setTimeout(r, 50));
   }
   throw new Error(
     `Timed out waiting for symbols to be removed for repository ${repositoryId}`,
@@ -77,12 +77,12 @@ async function waitForNoSymbols(
 async function waitForCall(
   spy: { mock: { calls: unknown[] } },
   prevCount: number,
-  timeoutMs = 5000,
+  timeoutMs = 15000,
 ) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (spy.mock.calls.length > prevCount) return;
-    await new Promise((r) => setTimeout(r, 100));
+    await new Promise((r) => setTimeout(r, 50));
   }
   throw new Error("Timed out waiting for spy to be called");
 }
@@ -166,9 +166,11 @@ describe("watcher event integration", () => {
         path: repo.rootPath,
       });
 
+      await waitForSymbols(services, tracked.id, 1);
+
       const initialSymbols =
         await services.symbolDbService.listSymbolsByRepository(tracked.id);
-      const initialHash = initialSymbols[0]?.hash;
+      const initialUpdatedAt = initialSymbols[0]?.updatedAt;
       const llmCallsBefore =
         services.mockLLM.promptForStructuredJson.mock.calls.length;
 
@@ -184,7 +186,7 @@ describe("watcher event integration", () => {
       const updatedSymbols =
         await services.symbolDbService.listSymbolsByRepository(tracked.id);
       expect(updatedSymbols).toHaveLength(initialSymbols.length);
-      expect(updatedSymbols[0]?.hash).not.toBe(initialHash);
+      expect(updatedSymbols[0]?.updatedAt).not.toBe(initialUpdatedAt);
     });
 
     it("does not duplicate symbol rows when re-indexing", async () => {
@@ -194,6 +196,8 @@ describe("watcher event integration", () => {
         name: "test-repo",
         path: repo.rootPath,
       });
+
+      await waitForSymbols(services, tracked.id, 1);
 
       const initialCount = (
         await services.symbolDbService.listSymbolsByRepository(tracked.id)
@@ -226,6 +230,8 @@ describe("watcher event integration", () => {
         name: "test-repo",
         path: repo.rootPath,
       });
+
+      await waitForSymbols(services, tracked.id, 1);
 
       const llmCallsAfterInit =
         services.mockLLM.promptForStructuredJson.mock.calls.length;

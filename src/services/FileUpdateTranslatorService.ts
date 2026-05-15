@@ -115,8 +115,17 @@ export class FileUpdateTranslatorService implements FileUpdateTranslatorServiceP
       return;
     }
 
-    const symbols =
-      await this.config.treeSitterService.extractSymbols(fullPath);
+    let symbols: ExtractedSymbol[];
+
+    try {
+      symbols = await this.config.treeSitterService.extractSymbols(fullPath);
+    } catch (error) {
+      if (this.isUnsupportedFileError(error)) {
+        return;
+      }
+
+      throw error;
+    }
 
     const existingSymbols =
       await this.config.symbolDBService.listSymbolsByRepositoryFile(
@@ -143,6 +152,16 @@ export class FileUpdateTranslatorService implements FileUpdateTranslatorServiceP
         this.onSymbolShouldBeDeleted?.(existingSymbol);
       }
     }
+  }
+
+  private isUnsupportedFileError(error: unknown): boolean {
+    if (!(error instanceof Error)) {
+      return false;
+    }
+
+    return error.message.startsWith(
+      "No Tree-sitter adapter registered for file:",
+    );
   }
 
   private async determineSymbolIndexing(

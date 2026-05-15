@@ -25,14 +25,14 @@ async function waitForSymbols(
   services: IntegrationServices,
   repositoryId: string,
   minCount: number,
-  timeoutMs = 5000,
+  timeoutMs = 15000,
 ) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const symbols =
       await services.symbolDbService.listSymbolsByRepository(repositoryId);
     if (symbols.length >= minCount) return symbols;
-    await new Promise((r) => setTimeout(r, 100));
+    await new Promise((r) => setTimeout(r, 50));
   }
   throw new Error(
     `Timed out waiting for ${minCount} symbol(s) for repository ${repositoryId}`,

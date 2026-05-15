@@ -9,7 +9,9 @@ import { FileDBService } from "../../../db/services/file.js";
 import { SymbolDBService } from "../../../db/services/symbol.js";
 import { hasherService } from "../../../services/util/Hasher.js";
 import { treeSitterService } from "../../../services/treesitter/TreeSitter.js";
-import { repositoryPathService } from "../../../services/util/RepositoryPathService.js";
+import {
+  RepositoryPathService,
+} from "../../../services/util/RepositoryPathService.js";
 import type { DatabaseClient } from "../../../db/client.js";
 import {
   createMockLLMService,
@@ -57,6 +59,7 @@ export function createIntegrationServices(
   const repositoryDbService = new RepositoryDBService(db);
   const fileDbService = new FileDBService(db);
   const symbolDbService = new SymbolDBService(db);
+  const repositoryPathService = new RepositoryPathService(repositoryDbService);
 
   // Indexer: real logic, mocked external calls
   const indexer = new IndexerService({
@@ -83,6 +86,7 @@ export function createIntegrationServices(
   const fileUpdater = new FileUpdateService({
     debounceService: fileDebounceService,
     fileDBService: fileDbService,
+    symbolDBService: symbolDbService,
     hasherService,
     indexService: indexer,
     repositoryPathService,
