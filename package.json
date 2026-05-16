@@ -6,6 +6,8 @@
   "scripts": {
     "build": "tsc",
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "dev:ui": "npm run build && OPEN_UI=true node dist/index.js",
+    "dev:all": "npm run dev:ui",
     "start": "node dist/index.js",
     "start:mcp": "node dist/mcp/index.js",
     "db:generate": "drizzle-kit generate",

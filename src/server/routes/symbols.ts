@@ -1,8 +1,26 @@
 import { Router, Request, Response, NextFunction } from "express";
-import { querySymbolsSchema, upsertSymbolSchema } from "../validation.js";
+import {
+  listSymbolsSchema,
+  querySymbolsSchema,
+  upsertSymbolSchema,
+} from "../validation.js";
 import { SymbolService } from "../../services/SymbolService.js";
 
 const router = Router();
+
+/**
+ * GET /symbols
+ * List registered symbols, optionally filtered by repository.
+ */
+router.get("/", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const params = listSymbolsSchema.parse(req.query);
+    const symbols = await SymbolService.list(params.repositoryId);
+    res.json(symbols.slice(0, params.limit));
+  } catch (err) {
+    next(err);
+  }
+});
 
 /**
  * GET /symbols/query

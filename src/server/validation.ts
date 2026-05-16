@@ -27,6 +27,11 @@ export const querySymbolsSchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(10),
 });
 
+export const listSymbolsSchema = z.object({
+  repositoryId: z.string().uuid().optional(),
+  limit: z.coerce.number().int().min(1).max(500).default(200),
+});
+
 export const meaningSearchSchema = querySymbolsSchema;
 
 export const configureOllamaProviderSchema = z.object({

@@ -20,6 +20,14 @@ interface UpsertSymbolInput {
 }
 
 class SymbolApiService {
+  async list(repositoryId?: string): Promise<Symbol[]> {
+    if (repositoryId) {
+      return symbolDBService.listSymbolsByRepository(repositoryId);
+    }
+
+    return symbolDBService.listSymbols();
+  }
+
   async query(
     q: string,
     limit = 10,
