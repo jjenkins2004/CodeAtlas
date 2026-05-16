@@ -4,6 +4,7 @@ import { symbols } from "../schema.js";
 import type {
   CreateSymbolInput,
   Symbol,
+  SymbolQueryResult,
   UpdateSymbolInput,
 } from "../../models/Symbol.js";
 import { BaseDBService } from "./base.js";
@@ -18,6 +19,56 @@ function mapSymbol(record: SymbolRecord): Symbol {
 }
 
 export class SymbolDBService extends BaseDBService {
+  async semanticSearch(
+    queryEmbedding: number[],
+    limit = 10,
+    repositoryId?: string,
+  ): Promise<SymbolQueryResult[]> {
+    return this.executeQuery("semanticSearch", async () => {
+      const queryVectorLiteral = `[${queryEmbedding.join(",")}]`;
+      const distanceExpr = sql<number>`(${symbols.embedding} <=> ${queryVectorLiteral}::vector)`;
+      const similarityExpr = sql<number>`1 - ${distanceExpr}`;
+
+      const baseSelect = this.db
+        .select({
+          id: symbols.id,
+          repositoryId: symbols.repositoryId,
+          symbol: symbols.symbol,
+          fileId: symbols.fileId,
+          type: symbols.type,
+          visibility: symbols.visibility,
+          blurb: symbols.blurb,
+          tags: symbols.tags,
+          score: similarityExpr,
+        })
+        .from(symbols)
+        .orderBy(distanceExpr)
+        .limit(limit);
+
+      const records = repositoryId
+        ? await baseSelect.where(
+            and(
+              eq(symbols.repositoryId, repositoryId),
+              sql`${symbols.embedding} is not null`,
+            ),
+          )
+        : await baseSelect.where(sql`${symbols.embedding} is not null`);
+
+      return records.map((record) => ({
+        ...record,
+        tags: record.tags ?? [],
+      }));
+    });
+  }
+
+  async listSymbols(): Promise<Symbol[]> {
+    return this.executeQuery("listSymbols", async () => {
+      const records = await this.db.select().from(symbols);
+
+      return records.map(mapSymbol);
+    });
+  }
+
   async listSymbolsByRepositoryFile(
     repositoryId: string,
     fileId: string,

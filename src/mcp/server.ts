@@ -1,8 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { SymbolService } from "../services/SymbolService.js";
-import { RepositoryService } from "../services/RepositoryService.js";
+import { SymbolService } from "../services/SymbolService";
+import { RepositoryService } from "../services/RepositoryService";
 
 /**
  * Builds and returns a configured MCP server instance.
@@ -29,7 +29,7 @@ export function createMcpServer(): McpServer {
         .string()
         .min(1)
         .describe(
-          'Short description of the logic bit to find, e.g. "string to date"'
+          'Short description of the logic bit to find, e.g. "string to date"',
         ),
       repositoryId: z
         .string()
@@ -54,7 +54,7 @@ export function createMcpServer(): McpServer {
           },
         ],
       };
-    }
+    },
   );
 
   /**
@@ -66,7 +66,10 @@ export function createMcpServer(): McpServer {
     "Register a local repository for indexing. " +
       "Triggers an initial full index and starts a file watcher for incremental updates.",
     {
-      name: z.string().min(1).describe("Human-readable name for the repository"),
+      name: z
+        .string()
+        .min(1)
+        .describe("Human-readable name for the repository"),
       path: z
         .string()
         .min(1)
@@ -82,7 +85,7 @@ export function createMcpServer(): McpServer {
           },
         ],
       };
-    }
+    },
   );
 
   /**
@@ -103,7 +106,7 @@ export function createMcpServer(): McpServer {
           },
         ],
       };
-    }
+    },
   );
 
   /**
@@ -114,11 +117,16 @@ export function createMcpServer(): McpServer {
     "untrack_repository",
     "Stop tracking a repository. Optionally delete all of its indexed symbols.",
     {
-      repositoryId: z.string().uuid().describe("ID of the repository to untrack"),
+      repositoryId: z
+        .string()
+        .uuid()
+        .describe("ID of the repository to untrack"),
       delete: z
         .boolean()
         .default(false)
-        .describe("When true, also removes all indexed symbols for this repository"),
+        .describe(
+          "When true, also removes all indexed symbols for this repository",
+        ),
     },
     async ({ repositoryId, delete: shouldDelete }) => {
       await RepositoryService.untrack(repositoryId, shouldDelete);
@@ -130,7 +138,7 @@ export function createMcpServer(): McpServer {
           },
         ],
       };
-    }
+    },
   );
 
   /**
@@ -141,12 +149,15 @@ export function createMcpServer(): McpServer {
     "reindex_repository",
     "Reindex a tracked repository. Optionally scope the crawl to a sub-path.",
     {
-      repositoryId: z.string().uuid().describe("ID of the repository to reindex"),
+      repositoryId: z
+        .string()
+        .uuid()
+        .describe("ID of the repository to reindex"),
       subpath: z
         .string()
         .optional()
         .describe(
-          "Relative sub-path within the repository to limit the reindex scope"
+          "Relative sub-path within the repository to limit the reindex scope",
         ),
     },
     async ({ repositoryId, subpath }) => {
@@ -159,7 +170,7 @@ export function createMcpServer(): McpServer {
           },
         ],
       };
-    }
+    },
   );
 
   return server;

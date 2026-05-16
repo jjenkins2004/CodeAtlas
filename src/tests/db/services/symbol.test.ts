@@ -35,6 +35,13 @@ async function createFile(
   return created.id;
 }
 
+function makeEmbedding(first: number, second: number): number[] {
+  const embedding = Array.from({ length: 1536 }, () => 0);
+  embedding[0] = first;
+  embedding[1] = second;
+  return embedding;
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -201,6 +208,99 @@ describe("SymbolDBService", () => {
       ]);
       expect(
         listed.every((symbol) => symbol.repositoryId === firstRepository.id),
+      ).toBe(true);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // semanticSearch()
+  // ---------------------------------------------------------------------------
+
+  describe("semanticSearch()", () => {
+    it("orders symbols by vector similarity and filters by repository", async () => {
+      const targetRepository = await repositoryService.createRepository({
+        name: "CodeAtlas",
+        path: "/tmp/codeatlas",
+      });
+      const otherRepository = await repositoryService.createRepository({
+        name: "OtherRepo",
+        path: "/tmp/other-repo",
+      });
+
+      const targetFileId = await createFile(
+        ctx,
+        targetRepository.id,
+        "src/index.ts",
+      );
+      const otherFileId = await createFile(
+        ctx,
+        otherRepository.id,
+        "src/other.ts",
+        "other-file-hash",
+      );
+
+      await service.createSymbol({
+        repositoryId: targetRepository.id,
+        symbol: "exactMatch",
+        fileId: targetFileId,
+        hash: "symbol-hash-exact",
+        type: "function",
+        visibility: "public",
+        embedding: makeEmbedding(1, 0),
+      });
+
+      await service.createSymbol({
+        repositoryId: targetRepository.id,
+        symbol: "diagonalMatch",
+        fileId: targetFileId,
+        hash: "symbol-hash-diagonal",
+        type: "function",
+        visibility: "public",
+        embedding: makeEmbedding(0.7, 0.7),
+      });
+
+      await service.createSymbol({
+        repositoryId: targetRepository.id,
+        symbol: "orthogonalMatch",
+        fileId: targetFileId,
+        hash: "symbol-hash-orthogonal",
+        type: "function",
+        visibility: "public",
+        embedding: makeEmbedding(0, 1),
+      });
+
+      await service.createSymbol({
+        repositoryId: targetRepository.id,
+        symbol: "missingEmbedding",
+        fileId: targetFileId,
+        hash: "symbol-hash-missing",
+        type: "function",
+        visibility: "public",
+      });
+
+      await service.createSymbol({
+        repositoryId: otherRepository.id,
+        symbol: "otherRepoBest",
+        fileId: otherFileId,
+        hash: "symbol-hash-other",
+        type: "function",
+        visibility: "public",
+        embedding: makeEmbedding(1, 0),
+      });
+
+      const results = await service.semanticSearch(
+        makeEmbedding(1, 0),
+        2,
+        targetRepository.id,
+      );
+
+      expect(results).toHaveLength(2);
+      expect(results.map((result) => result.symbol)).toEqual([
+        "exactMatch",
+        "diagonalMatch",
+      ]);
+      expect(
+        results.every((result) => result.repositoryId === targetRepository.id),
       ).toBe(true);
     });
   });

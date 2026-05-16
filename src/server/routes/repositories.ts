@@ -3,8 +3,9 @@ import {
   createRepositorySchema,
   untrackRepositorySchema,
   reindexPathSchema,
+  startTrackingSchema,
 } from "../validation.js";
-import { RepositoryService } from "../../services/RepositoryService.js";
+import { RepositoryService } from "../../services/RepositoryService";
 
 const router = Router();
 
@@ -21,6 +22,23 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
     next(err);
   }
 });
+
+/**
+ * POST /repositories/start
+ * Start tracking an already-registered repository by name.
+ */
+router.post(
+  "/start",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const input = startTrackingSchema.parse(req.body);
+      const repository = await RepositoryService.start(input.name);
+      res.status(200).json(repository);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
 
 /**
  * GET /repositories
@@ -67,7 +85,7 @@ router.delete(
     } catch (err) {
       next(err);
     }
-  }
+  },
 );
 
 /**
@@ -84,7 +102,7 @@ router.post(
     } catch (err) {
       next(err);
     }
-  }
+  },
 );
 
 export default router;
