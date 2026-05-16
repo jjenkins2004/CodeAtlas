@@ -34,13 +34,13 @@ router.get(
       const results = await SymbolService.query(
         params.q,
         params.limit,
-        params.repositoryId
+        params.repositoryId,
       );
       res.json(results);
     } catch (err) {
       next(err);
     }
-  }
+  },
 );
 
 /**
@@ -87,7 +87,7 @@ router.delete(
     } catch (err) {
       next(err);
     }
-  }
+  },
 );
 
 export default router;

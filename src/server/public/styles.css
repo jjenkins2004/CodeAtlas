@@ -18,8 +18,7 @@ body {
   color: var(--text);
   background:
     radial-gradient(circle at 0% 0%, #f8e8cf 0%, transparent 35%),
-    radial-gradient(circle at 100% 100%, #dde9dc 0%, transparent 30%),
-    var(--bg);
+    radial-gradient(circle at 100% 100%, #dde9dc 0%, transparent 30%), var(--bg);
 }
 
 .shell {

@@ -4,8 +4,10 @@ import {
   repositoryPathService,
   type RepositoryPathServicePort,
 } from "./util/RepositoryPathService.js";
+import { createLogger } from "./util/Logger.js";
 
 type IgnoreFilterInstance = ReturnType<typeof IgnoreFilter.createFilter>;
+const logger = createLogger({ component: "watcher" });
 
 /**
  * Watches a repository directory for file changes and triggers incremental
@@ -50,7 +52,7 @@ export class Watcher implements WatcherPort {
     } = config;
 
     if (this.activeWatchers.has(repositoryId)) {
-      console.warn(`Watcher already active for repository ${repositoryId}`);
+      logger.warn({ repositoryId }, "Watcher already active");
       return;
     }
 
@@ -81,13 +83,28 @@ export class Watcher implements WatcherPort {
       });
 
       watcher.on("add", (fullPath: string) => {
-        onCreation(pathService.toRepositoryRelativePath(rootPath, fullPath));
+        const relativePath = pathService.toRepositoryRelativePath(
+          rootPath,
+          fullPath,
+        );
+        logger.debug({ repositoryId, relativePath }, "File created");
+        onCreation(relativePath);
       });
       watcher.on("change", (fullPath: string) => {
-        onUpdate(pathService.toRepositoryRelativePath(rootPath, fullPath));
+        const relativePath = pathService.toRepositoryRelativePath(
+          rootPath,
+          fullPath,
+        );
+        logger.debug({ repositoryId, relativePath }, "File changed");
+        onUpdate(relativePath);
       });
       watcher.on("unlink", (fullPath: string) => {
-        onDeletion(pathService.toRepositoryRelativePath(rootPath, fullPath));
+        const relativePath = pathService.toRepositoryRelativePath(
+          rootPath,
+          fullPath,
+        );
+        logger.debug({ repositoryId, relativePath }, "File deleted");
+        onDeletion(relativePath);
       });
 
       await new Promise<void>((resolve, reject) => {
@@ -98,11 +115,12 @@ export class Watcher implements WatcherPort {
       // Store the watcher for later cleanup
       this.activeWatchers.set(repositoryId, watcher);
 
-      console.log(
-        `Watcher started for repository ${repositoryId} at ${rootPath}`,
-      );
+      logger.info({ repositoryId, rootPath }, "Watcher started");
     } catch (error) {
-      console.error(`Failed to start watcher for ${repositoryId}:`, error);
+      logger.error(
+        { err: error, repositoryId, rootPath },
+        "Failed to start watcher",
+      );
       throw error;
     }
   }
@@ -115,16 +133,16 @@ export class Watcher implements WatcherPort {
   async stop(repositoryId: string): Promise<void> {
     const watcher = this.activeWatchers.get(repositoryId);
     if (!watcher) {
-      console.warn(`No active watcher for repository ${repositoryId}`);
+      logger.debug({ repositoryId }, "No active watcher to stop");
       return;
     }
 
     try {
       await watcher.close();
       this.activeWatchers.delete(repositoryId);
-      console.log(`Watcher stopped for repository ${repositoryId}`);
+      logger.info({ repositoryId }, "Watcher stopped");
     } catch (error) {
-      console.error(`Failed to stop watcher for ${repositoryId}:`, error);
+      logger.error({ err: error, repositoryId }, "Failed to stop watcher");
       throw error;
     }
   }

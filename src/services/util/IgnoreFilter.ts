@@ -1,6 +1,9 @@
 import ignore from "ignore";
 import fs from "fs";
 import path from "path";
+import { createLogger } from "./Logger.js";
+
+const logger = createLogger({ component: "ignore-filter" });
 
 /**
  * Hardcoded patterns for non-code files and directories that should
@@ -58,7 +61,7 @@ export const IgnoreFilter = {
         );
       }
     } catch (error) {
-      console.warn(`Failed to read .gitignore at ${gitignorePath}:`, error);
+      logger.warn({ err: error, gitignorePath }, "Failed to read .gitignore");
     }
 
     return patterns;

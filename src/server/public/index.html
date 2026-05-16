@@ -10,7 +10,10 @@
     <main class="shell">
       <header class="hero">
         <h1>CodeAtlas Local UI</h1>
-        <p>Basic control panel for repositories, symbols, provider config, and search.</p>
+        <p>
+          Basic control panel for repositories, symbols, provider config, and
+          search.
+        </p>
         <div class="row">
           <button id="healthBtn" type="button">Check Health</button>
           <span id="healthText" class="muted">not checked</span>
@@ -22,16 +25,33 @@
         <form id="ollamaForm" class="grid">
           <h3>Configure Ollama</h3>
           <label>Model <input name="model" required value="llama3.1" /></label>
-          <label>Embedding Model <input name="embeddingModel" placeholder="optional" /></label>
-          <label>Base URL <input name="baseUrl" type="url" required value="http://localhost:11434" /></label>
+          <label
+            >Embedding Model
+            <input name="embeddingModel" placeholder="optional"
+          /></label>
+          <label
+            >Base URL
+            <input
+              name="baseUrl"
+              type="url"
+              required
+              value="http://localhost:11434"
+          /></label>
           <button type="submit">Save Ollama</button>
         </form>
 
         <form id="openaiForm" class="grid">
           <h3>Configure OpenAI-Compatible</h3>
-          <label>Model <input name="model" required value="gpt-4o-mini" /></label>
-          <label>Embedding Model <input name="embeddingModel" placeholder="optional" /></label>
-          <label>API Key <input name="apiKey" required type="password" /></label>
+          <label
+            >Model <input name="model" required value="gpt-4o-mini"
+          /></label>
+          <label
+            >Embedding Model
+            <input name="embeddingModel" placeholder="optional"
+          /></label>
+          <label
+            >API Key <input name="apiKey" required type="password"
+          /></label>
           <button type="submit">Save OpenAI</button>
         </form>
       </section>
@@ -54,7 +74,10 @@
         <h2>Symbols</h2>
         <form id="symbolsListForm" class="grid">
           <label>Repository ID (optional) <input name="repositoryId" /></label>
-          <label>Limit <input name="limit" type="number" min="1" max="500" value="50" /></label>
+          <label
+            >Limit
+            <input name="limit" type="number" min="1" max="500" value="50"
+          /></label>
           <button type="submit">Load Symbols</button>
         </form>
 
@@ -73,7 +96,8 @@
           <label>Repository ID <input name="repositoryId" required /></label>
           <label>Symbol <input name="symbol" required /></label>
           <label>File Path <input name="file" required /></label>
-          <label>Type
+          <label
+            >Type
             <select name="type">
               <option value="function">function</option>
               <option value="class">class</option>
@@ -82,16 +106,30 @@
               <option value="method">method</option>
             </select>
           </label>
-          <label>Visibility
+          <label
+            >Visibility
             <select name="visibility">
               <option value="public">public</option>
               <option value="internal">internal</option>
               <option value="private">private</option>
             </select>
           </label>
-          <label>Blurb <textarea name="blurb" rows="2" placeholder="optional"></textarea></label>
-          <label>Implementation <textarea name="implementation" rows="3" placeholder="optional"></textarea></label>
-          <label>Tags (comma separated) <input name="tags" placeholder="date parsing, query ranking" /></label>
+          <label
+            >Blurb
+            <textarea name="blurb" rows="2" placeholder="optional"></textarea>
+          </label>
+          <label
+            >Implementation
+            <textarea
+              name="implementation"
+              rows="3"
+              placeholder="optional"
+            ></textarea>
+          </label>
+          <label
+            >Tags (comma separated)
+            <input name="tags" placeholder="date parsing, query ranking"
+          /></label>
           <button type="submit">Upsert Symbol</button>
         </form>
 
@@ -103,7 +141,10 @@
         <form id="searchForm" class="grid">
           <label>Query <input name="q" required /></label>
           <label>Repository ID (optional) <input name="repositoryId" /></label>
-          <label>Limit <input name="limit" type="number" min="1" max="50" value="10" /></label>
+          <label
+            >Limit
+            <input name="limit" type="number" min="1" max="50" value="10"
+          /></label>
           <button type="submit">Run Search</button>
         </form>
         <div id="searchResults" class="list"></div>

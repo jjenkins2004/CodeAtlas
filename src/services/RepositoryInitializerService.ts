@@ -23,6 +23,9 @@ import {
   type RepositoryPathServicePort,
 } from "./util/RepositoryPathService.js";
 import { RepositoryNotFoundError } from "../models/Repository.js";
+import { createLogger } from "./util/Logger.js";
+
+const logger = createLogger({ component: "repository-initializer" });
 
 export interface RepositoryInitializerServicePort {
   /**
@@ -72,6 +75,10 @@ export class RepositoryInitializerService implements RepositoryInitializerServic
 
   async initializeRepository(repositoryId: string): Promise<void> {
     if (this.initializingRepositories.has(repositoryId)) {
+      logger.debug(
+        { repositoryId },
+        "Repository initialization already in progress",
+      );
       return;
     }
 
@@ -85,8 +92,20 @@ export class RepositoryInitializerService implements RepositoryInitializerServic
         throw new RepositoryNotFoundError(repositoryId);
       }
 
+      logger.info(
+        {
+          repositoryId,
+          repositoryName: repository.name,
+          repositoryPath: repository.path,
+        },
+        "Repository initialization started",
+      );
+
       const relativePaths =
         await this.config.repositoryPathService.walkDirectory(repository.path);
+
+      let indexedFileCount = 0;
+      let extractedSymbolCount = 0;
 
       for (const relativePath of relativePaths) {
         const fullPath = this.config.repositoryPathService.toRepositoryFullPath(
@@ -94,8 +113,25 @@ export class RepositoryInitializerService implements RepositoryInitializerServic
           relativePath,
         );
 
-        await this.indexFile(repositoryId, fullPath, relativePath);
+        const result = await this.indexFile(
+          repositoryId,
+          fullPath,
+          relativePath,
+        );
+        indexedFileCount += result.indexedFileCount;
+        extractedSymbolCount += result.extractedSymbolCount;
       }
+
+      logger.info(
+        {
+          repositoryId,
+          repositoryName: repository.name,
+          scannedFileCount: relativePaths.length,
+          indexedFileCount,
+          extractedSymbolCount,
+        },
+        "Repository initialization completed",
+      );
     } finally {
       this.initializingRepositories.delete(repositoryId);
     }
@@ -105,18 +141,26 @@ export class RepositoryInitializerService implements RepositoryInitializerServic
     repositoryId: string,
     fullPath: string,
     relativePath: string,
-  ): Promise<void> {
+  ): Promise<{ indexedFileCount: number; extractedSymbolCount: number }> {
     let symbols;
 
     try {
       symbols = await this.config.treeSitterService.extractSymbols(fullPath);
     } catch {
       // No tree-sitter adapter registered for this file type — skip it.
-      return;
+      logger.debug(
+        { repositoryId, relativePath },
+        "Skipping file with unsupported language",
+      );
+      return { indexedFileCount: 0, extractedSymbolCount: 0 };
     }
 
     if (symbols.length === 0) {
-      return;
+      logger.debug(
+        { repositoryId, relativePath },
+        "Skipping file with no extracted symbols",
+      );
+      return { indexedFileCount: 0, extractedSymbolCount: 0 };
     }
 
     const fileHash = await this.config.hasherService.hashFile(fullPath);
@@ -141,6 +185,17 @@ export class RepositoryInitializerService implements RepositoryInitializerServic
         body: extracted.body,
       });
     }
+
+    logger.debug(
+      {
+        repositoryId,
+        relativePath,
+        extractedSymbolCount: symbols.length,
+      },
+      "Indexed repository file",
+    );
+
+    return { indexedFileCount: 1, extractedSymbolCount: symbols.length };
   }
 }
 

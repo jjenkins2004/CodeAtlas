@@ -1,6 +1,9 @@
 import type { EmbeddingProviderPort } from "./llm/LLMProvider.js";
 import { OllamaProvider } from "./llm/OllamaProvider.js";
 import { OpenAICompatibleProvider } from "./llm/OpenAICompatibleProvider.js";
+import { createLogger } from "./util/Logger.js";
+
+const logger = createLogger({ component: "embedding-service" });
 
 export interface EmbeddingServiceConfig {
   model: string;
@@ -55,7 +58,28 @@ export class EmbeddingService implements EmbeddingServicePort {
   async embed(text: string): Promise<number[]> {
     const config = this.requireConfig();
 
-    return config.provider.embed(text, config.embeddingModel);
+    const startTime = Date.now();
+    logger.debug(
+      {
+        model: config.embeddingModel,
+        inputLength: text.length,
+      },
+      "Embedding request started",
+    );
+
+    const embedding = await config.provider.embed(text, config.embeddingModel);
+
+    logger.debug(
+      {
+        model: config.embeddingModel,
+        inputLength: text.length,
+        durationMs: Date.now() - startTime,
+        dimensionCount: embedding.length,
+      },
+      "Embedding request completed",
+    );
+
+    return embedding;
   }
 }
 

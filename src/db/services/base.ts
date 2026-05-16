@@ -1,4 +1,5 @@
 import type { DatabaseClient } from "../client.js";
+import { createLogger } from "../../services/util/Logger.js";
 
 /**
  * Base class for all database services.
@@ -10,6 +11,10 @@ import type { DatabaseClient } from "../client.js";
  */
 export abstract class BaseDBService {
   protected db: DatabaseClient;
+  private readonly logger = createLogger({
+    component: "db-service",
+    serviceClass: this.constructor.name,
+  });
 
   constructor(db: DatabaseClient) {
     this.db = db;
@@ -66,15 +71,13 @@ export abstract class BaseDBService {
    * Log a debug-level message.
    */
   protected logDebug(operation: string, message: string): void {
-    console.log(`[DB ${this.constructor.name}] ${operation}: ${message}`);
+    this.logger.debug({ operation }, message);
   }
 
   /**
    * Log an error-level message.
    */
   protected logError(operation: string, message: string): void {
-    console.error(
-      `[DB ${this.constructor.name}] ERROR in ${operation}: ${message}`,
-    );
+    this.logger.error({ operation }, message);
   }
 }

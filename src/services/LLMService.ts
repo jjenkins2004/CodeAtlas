@@ -2,6 +2,9 @@ import { z, type ZodTypeAny } from "zod";
 import type { LLMProviderPort } from "./llm/LLMProvider.js";
 import { OllamaProvider } from "./llm/OllamaProvider.js";
 import { OpenAICompatibleProvider } from "./llm/OpenAICompatibleProvider.js";
+import { createLogger } from "./util/Logger.js";
+
+const logger = createLogger({ component: "llm-service" });
 
 export interface LLMServiceConfig {
   model: string;
@@ -86,11 +89,20 @@ export class LLMService implements LLMServicePort {
     schema: TSchema,
   ): Promise<z.infer<TSchema>> {
     const config = this.requireConfig();
+    const startTime = Date.now();
 
     const messageContent = [
       prompt,
       "Return a single JSON object response.",
     ].join("\n\n");
+
+    logger.debug(
+      {
+        model: config.model,
+        promptLength: messageContent.length,
+      },
+      "LLM structured JSON request started",
+    );
 
     const content = await config.provider.generate({
       model: config.model,
@@ -105,6 +117,15 @@ export class LLMService implements LLMServicePort {
     if (!validated.success) {
       throw new LLMServiceValidationError(validated.error.issues);
     }
+
+    logger.debug(
+      {
+        model: config.model,
+        promptLength: messageContent.length,
+        durationMs: Date.now() - startTime,
+      },
+      "LLM structured JSON request completed",
+    );
 
     return validated.data;
   }

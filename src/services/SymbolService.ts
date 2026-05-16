@@ -7,6 +7,9 @@ import type {
 } from "../models/Symbol.js";
 import { hasherService } from "./util/Hasher.js";
 import { embeddingService } from "./EmbeddingService.js";
+import { createLogger } from "./util/Logger.js";
+
+const logger = createLogger({ component: "symbol-service" });
 
 interface UpsertSymbolInput {
   repositoryId: string;
@@ -38,9 +41,33 @@ class SymbolApiService {
       return [];
     }
 
+    logger.info(
+      {
+        repositoryId,
+        limit,
+        queryLength: normalizedQuery.length,
+      },
+      "Running semantic search",
+    );
+
     const queryEmbedding = await embeddingService.embed(normalizedQuery);
 
-    return symbolDBService.semanticSearch(queryEmbedding, limit, repositoryId);
+    const results = await symbolDBService.semanticSearch(
+      queryEmbedding,
+      limit,
+      repositoryId,
+    );
+
+    logger.info(
+      {
+        repositoryId,
+        limit,
+        resultCount: results.length,
+      },
+      "Semantic search completed",
+    );
+
+    return results;
   }
 
   async upsert(input: UpsertSymbolInput): Promise<Symbol> {

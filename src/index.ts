@@ -1,13 +1,21 @@
 import { createApp } from "./server/app.js";
 import { client } from "./db/index.js";
 import { execFile } from "node:child_process";
+import { createLogger, getLoggerModeSummary } from "./services/util/Logger.js";
 
 const PORT = parseInt(process.env["PORT"] ?? "3000", 10);
+const logger = createLogger({ component: "server" });
 
 const app = createApp();
 
 const server = app.listen(PORT, () => {
-  console.log(`CodeAtlas REST API listening on port ${PORT}`);
+  logger.info(
+    {
+      port: PORT,
+      ...getLoggerModeSummary(),
+    },
+    "REST API listening",
+  );
 
   if (process.env["OPEN_UI"] === "true") {
     const url = `http://localhost:${PORT}`;
@@ -22,14 +30,14 @@ const server = app.listen(PORT, () => {
 
     execFile(command, args, (error: Error | null) => {
       if (error) {
-        console.warn(`Unable to auto-open browser: ${error.message}`);
+        logger.warn({ err: error, url }, "Unable to auto-open browser");
       }
     });
   }
 });
 
 async function shutdown(): Promise<void> {
-  console.log("Shutting down…");
+  logger.info("Shutting down");
   server.close();
   await client.close();
   process.exit(0);

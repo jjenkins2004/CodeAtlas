@@ -16,6 +16,9 @@ import { migrate as migrateNodePg } from "drizzle-orm/node-postgres/migrator";
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import { migrate as migratePglite } from "drizzle-orm/pglite/migrator";
 import { SYMBOL_TYPES, VISIBILITY_LEVELS } from "../models/Symbol.js";
+import { createLogger } from "../services/util/Logger.js";
+
+const logger = createLogger({ component: "db-schema" });
 
 /**
  * Enum for symbol types extracted by tree-sitter.
@@ -129,7 +132,10 @@ async function initializePGLite(pglite: PGlite): Promise<void> {
       await pglite.exec(statement);
     } catch {
       // PGlite may expose extensions without supporting CREATE EXTENSION.
-      console.error("Failed to create extension: ", statement);
+      logger.debug(
+        { statement },
+        "Skipping unsupported extension statement for PGlite",
+      );
     }
   }
 

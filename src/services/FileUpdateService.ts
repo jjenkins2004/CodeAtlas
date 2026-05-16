@@ -21,11 +21,14 @@ import {
   type FileUpdateTranslatorServiceConstructor,
   type FileUpdateTranslatorServicePort,
 } from "./FileUpdateTranslatorService.js";
+import { createLogger } from "./util/Logger.js";
 import type {
   Symbol,
   SymbolCoreFields,
   SymbolSemanticFields,
 } from "../models/Symbol.js";
+
+const logger = createLogger({ component: "file-update-service" });
 
 export type FileUpdateOperation = "changed" | "deleted";
 
@@ -98,6 +101,15 @@ export class FileUpdateService implements FileUpdateServicePort {
     repositoryRelativePath: string,
     operation: FileUpdateOperation,
   ): void {
+    logger.debug(
+      {
+        repositoryId,
+        repositoryRelativePath,
+        operation,
+      },
+      "Queueing file update",
+    );
+
     this.config.debounceService.debounce(
       `${repositoryId}:${repositoryRelativePath}`,
       this.config.debounceMs,
@@ -110,9 +122,14 @@ export class FileUpdateService implements FileUpdateServicePort {
             operation,
           );
         } catch (error) {
-          console.warn(
-            `Failed to process file update ${repositoryId}:${repositoryRelativePath}`,
-            error,
+          logger.warn(
+            {
+              err: error,
+              repositoryId,
+              repositoryRelativePath,
+              operation,
+            },
+            "Failed to process file update",
           );
         }
       },
@@ -134,6 +151,15 @@ export class FileUpdateService implements FileUpdateServicePort {
       repositoryRelativePath,
     );
 
+    logger.debug(
+      {
+        repositoryId,
+        repositoryRelativePath,
+        operation,
+      },
+      "Processing file update",
+    );
+
     switch (operation) {
       case "changed": {
         const existingFile =
@@ -145,6 +171,13 @@ export class FileUpdateService implements FileUpdateServicePort {
         const fileHash = await this.config.hasherService.hashFile(fullPath);
 
         if (existingFile?.hash === fileHash) {
+          logger.debug(
+            {
+              repositoryId,
+              repositoryRelativePath,
+            },
+            "Skipping unchanged file",
+          );
           return;
         }
 
@@ -157,6 +190,14 @@ export class FileUpdateService implements FileUpdateServicePort {
         await this.getOrCreateFileUpdateTranslatorService(
           repositoryId,
         ).fileWasUpdated(repositoryRelativePath);
+
+        logger.debug(
+          {
+            repositoryId,
+            repositoryRelativePath,
+          },
+          "Processed changed file",
+        );
         return;
       }
       case "deleted": {
@@ -167,10 +208,24 @@ export class FileUpdateService implements FileUpdateServicePort {
           );
 
         if (!existingFile) {
+          logger.debug(
+            {
+              repositoryId,
+              repositoryRelativePath,
+            },
+            "Ignoring delete for unknown file",
+          );
           return;
         }
 
         await this.config.fileDBService.removeFile(existingFile.id);
+        logger.info(
+          {
+            repositoryId,
+            repositoryRelativePath,
+          },
+          "Removed deleted file from index",
+        );
       }
     }
   }
@@ -212,13 +267,16 @@ export class FileUpdateService implements FileUpdateServicePort {
             embedding: symbolSemanticFields.embedding ?? undefined,
             body,
           }),
-        )
-          .catch((error) => {
-            console.warn(
-              `Failed to index symbol ${symbolCoreFields.repositoryId}:${symbolCoreFields.symbol}`,
-              error,
-            );
-          });
+        ).catch((error) => {
+          logger.warn(
+            {
+              err: error,
+              repositoryId: symbolCoreFields.repositoryId,
+              symbol: symbolCoreFields.symbol,
+            },
+            "Failed to index symbol",
+          );
+        });
       },
     );
 

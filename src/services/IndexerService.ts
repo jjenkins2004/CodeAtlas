@@ -6,6 +6,9 @@ import { embeddingService as defaultEmbeddingService } from "./EmbeddingService.
 import type { EmbeddingServicePort } from "./EmbeddingService.js";
 import { llmService as defaultLLMService } from "./LLMService.js";
 import type { LLMServicePort } from "./LLMService.js";
+import { createLogger } from "./util/Logger.js";
+
+const logger = createLogger({ component: "indexer" });
 
 // ---------------------------------------------------------------------------
 // Input type
@@ -138,6 +141,16 @@ export class IndexerService implements IndexerServicePort {
     const hasExistingSemantics =
       input.blurb != null && input.implementation != null;
 
+    logger.debug(
+      {
+        repositoryId: input.repositoryId,
+        symbol: input.symbol,
+        type: input.type,
+        hasExistingSemantics,
+      },
+      "Indexing symbol",
+    );
+
     let blurb: string;
     let implementation: string;
     let tags: string[];
@@ -183,6 +196,15 @@ export class IndexerService implements IndexerServicePort {
       tags,
       embedding,
     });
+
+    logger.debug(
+      {
+        repositoryId: input.repositoryId,
+        symbol: input.symbol,
+        type: input.type,
+      },
+      "Indexed symbol",
+    );
   }
 }
 

@@ -20,6 +20,9 @@ import {
   repositoryPathService,
   type RepositoryPathServicePort,
 } from "./util/RepositoryPathService.js";
+import { createLogger } from "./util/Logger.js";
+
+const logger = createLogger({ component: "file-update-translator" });
 
 export type FileUpdateTranslatorCallback = (
   symbolCoreFields: SymbolCoreFields,
@@ -100,6 +103,14 @@ export class FileUpdateTranslatorService implements FileUpdateTranslatorServiceP
   }
 
   async fileWasUpdated(repositoryRelativePath: string): Promise<void> {
+    logger.debug(
+      {
+        repositoryId: this.config.repositoryId,
+        repositoryRelativePath,
+      },
+      "Translating file update into symbol actions",
+    );
+
     const fullPath =
       await this.config.repositoryPathService.toRepositoryFullPathByRepositoryId(
         this.config.repositoryId,
@@ -112,6 +123,13 @@ export class FileUpdateTranslatorService implements FileUpdateTranslatorServiceP
     );
 
     if (!file) {
+      logger.debug(
+        {
+          repositoryId: this.config.repositoryId,
+          repositoryRelativePath,
+        },
+        "Skipping file update because no file record exists",
+      );
       return;
     }
 
@@ -121,6 +139,13 @@ export class FileUpdateTranslatorService implements FileUpdateTranslatorServiceP
       symbols = await this.config.treeSitterService.extractSymbols(fullPath);
     } catch (error) {
       if (this.isUnsupportedFileError(error)) {
+        logger.debug(
+          {
+            repositoryId: this.config.repositoryId,
+            repositoryRelativePath,
+          },
+          "Skipping unsupported file type",
+        );
         return;
       }
 
@@ -139,6 +164,16 @@ export class FileUpdateTranslatorService implements FileUpdateTranslatorServiceP
       symbols.map((symbol) => symbol.symbol),
     );
 
+    logger.debug(
+      {
+        repositoryId: this.config.repositoryId,
+        repositoryRelativePath,
+        extractedSymbolCount: symbols.length,
+        existingSymbolCount: existingSymbols.length,
+      },
+      "Compared extracted symbols with indexed symbols",
+    );
+
     for (const symbol of symbols) {
       await this.determineSymbolIndexing(
         symbol,
@@ -149,6 +184,14 @@ export class FileUpdateTranslatorService implements FileUpdateTranslatorServiceP
 
     for (const existingSymbol of existingSymbols) {
       if (!extractedSymbolNames.has(existingSymbol.symbol)) {
+        logger.debug(
+          {
+            repositoryId: this.config.repositoryId,
+            repositoryRelativePath,
+            symbol: existingSymbol.symbol,
+          },
+          "Indexed symbol no longer exists in file",
+        );
         this.onSymbolShouldBeDeleted?.(existingSymbol);
       }
     }
@@ -177,6 +220,14 @@ export class FileUpdateTranslatorService implements FileUpdateTranslatorServiceP
 
     if (existingSymbol?.hash === extractedSymbolHash) {
       this.config.debounceService.remove(extractedSymbol.symbol);
+
+      logger.debug(
+        {
+          repositoryId: this.config.repositoryId,
+          symbol: extractedSymbol.symbol,
+        },
+        "Skipping unchanged symbol",
+      );
 
       return;
     }
@@ -208,6 +259,18 @@ export class FileUpdateTranslatorService implements FileUpdateTranslatorServiceP
       symbolCoreFields.symbol,
       this.config.symbolDebounceMs,
       () => {
+        logger.debug(
+          {
+            repositoryId: this.config.repositoryId,
+            symbol: symbolCoreFields.symbol,
+            type: symbolCoreFields.type,
+            visibility: symbolCoreFields.visibility,
+          },
+          existingSymbol
+            ? "Scheduling semantic refresh for changed symbol"
+            : "Scheduling index for new symbol",
+        );
+
         this.onSymbolShouldBeReindexed?.(
           symbolCoreFields,
           symbolSemanticFields,

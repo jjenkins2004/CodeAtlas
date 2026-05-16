@@ -22,6 +22,9 @@ import {
   type RepositoryPathServicePort,
 } from "./util/RepositoryPathService.js";
 import { Watcher, type WatcherPort } from "./Watcher.js";
+import { createLogger } from "./util/Logger.js";
+
+const logger = createLogger({ component: "repository-orchestrator" });
 
 export interface RepositoryOrchestratorServiceConfig {
   repositoryDBService?: RepositoryDBServicePort;
@@ -63,6 +66,11 @@ export class RepositoryOrchestratorService {
    * back before the error is surfaced to the caller.
    */
   async trackRepository(input: CreateRepositoryInput): Promise<Repository> {
+    logger.info(
+      { repositoryName: input.name, repositoryPath: input.path },
+      "Tracking repository",
+    );
+
     const repositoryPath =
       await this.config.repositoryPathService.validateAndNormalizeRepositoryPath(
         input.path,
@@ -91,6 +99,14 @@ export class RepositoryOrchestratorService {
       RollbackStrategy.RemoveRepository,
     );
 
+    logger.info(
+      {
+        repositoryId: createdRepository.id,
+        repositoryName: createdRepository.name,
+      },
+      "Repository tracking started",
+    );
+
     return createdRepository;
   }
 
@@ -101,6 +117,11 @@ export class RepositoryOrchestratorService {
    * creating or deleting any repository records.
    */
   async startTracking(repositoryName: string): Promise<Repository> {
+    logger.info(
+      { repositoryName },
+      "Starting tracking for existing repository",
+    );
+
     const repository =
       await this.config.repositoryDBService.getRepositoryByName(repositoryName);
 
@@ -117,6 +138,15 @@ export class RepositoryOrchestratorService {
     const repositoryRelativePaths =
       await this.config.repositoryPathService.walkDirectory(repository.path);
 
+    logger.info(
+      {
+        repositoryId: repository.id,
+        repositoryName: repository.name,
+        replayFileCount: repositoryRelativePaths.length,
+      },
+      "Replaying repository files into update pipeline",
+    );
+
     for (const repositoryRelativePath of repositoryRelativePaths) {
       try {
         this.config.fileUpdateService.handleFileUpdate(
@@ -126,12 +156,24 @@ export class RepositoryOrchestratorService {
           "changed",
         );
       } catch (error) {
-        console.warn(
-          `Failed to queue replay update for ${repository.id}:${repositoryRelativePath}`,
-          error,
+        logger.warn(
+          {
+            err: error,
+            repositoryId: repository.id,
+            repositoryRelativePath,
+          },
+          "Failed to queue replay update",
         );
       }
     }
+
+    logger.info(
+      {
+        repositoryId: repository.id,
+        repositoryName: repository.name,
+      },
+      "Repository tracking restarted",
+    );
 
     return repository;
   }
@@ -141,6 +183,8 @@ export class RepositoryOrchestratorService {
    * repository record, and clears any cached symbol update guard state.
    */
   async untrackRepository(repositoryId: string): Promise<void> {
+    logger.info({ repositoryId }, "Stopping repository tracking");
+
     const repository =
       await this.config.repositoryDBService.getRepository(repositoryId);
 
@@ -158,6 +202,14 @@ export class RepositoryOrchestratorService {
     }
 
     this.config.fileUpdateService.removeRepository(repositoryId);
+
+    logger.info(
+      {
+        repositoryId,
+        repositoryName: repository.name,
+      },
+      "Repository tracking stopped",
+    );
   }
 
   private async startWatcher(repository: Repository): Promise<void> {
@@ -196,7 +248,10 @@ export class RepositoryOrchestratorService {
     try {
       await this.config.watcher.stop(repositoryId);
     } catch (error) {
-      console.warn(`Failed to stop watcher for ${repositoryId}:`, error);
+      logger.warn(
+        { err: error, repositoryId },
+        "Failed to stop watcher during cleanup",
+      );
     }
   }
 
@@ -209,14 +264,15 @@ export class RepositoryOrchestratorService {
         await this.config.repositoryDBService.removeRepository(repositoryId);
 
       if (!removed) {
-        console.warn(
-          `Failed to remove repository ${repositoryId} during rollback`,
+        logger.warn(
+          { repositoryId },
+          "Rollback could not remove repository record",
         );
       }
     } catch (error) {
-      console.warn(
-        `Failed to remove repository ${repositoryId} during rollback:`,
-        error,
+      logger.warn(
+        { err: error, repositoryId },
+        "Rollback failed to remove repository record",
       );
     }
   }
@@ -227,8 +283,17 @@ export class RepositoryOrchestratorService {
     rollbackStrategy: RollbackStrategy,
   ): Promise<T> {
     try {
+      logger.debug(
+        { repositoryId, rollbackStrategy },
+        "Running repository tracking step",
+      );
       return await step();
     } catch (error) {
+      logger.error(
+        { err: error, repositoryId, rollbackStrategy },
+        "Repository tracking step failed",
+      );
+
       if (rollbackStrategy === RollbackStrategy.RemoveRepository) {
         await this.rollbackCreatedRepository(repositoryId);
       } else {

@@ -1,6 +1,11 @@
 import { startMcpServer } from "./server.js";
+import { createLogger, getLoggerModeSummary } from "../services/util/Logger.js";
+
+const logger = createLogger({ component: "mcp-server" });
+
+logger.info(getLoggerModeSummary(), "Starting MCP server");
 
 startMcpServer().catch((err) => {
-  console.error("MCP server error:", err);
+  logger.error({ err }, "MCP server error");
   process.exit(1);
 });
